@@ -17,6 +17,8 @@ import { StringListEditor } from './StringListEditor'
 import { LayoutPicker } from './LayoutPicker'
 import { AllocationCategoryListEditor } from './AllocationCategoryListEditor'
 import { LineComparisonEditor } from './LineComparisonEditor'
+import { ImageBlockField } from './ImageBlockField'
+import { BodyTextStyleEditor } from './BodyTextStyleEditor'
 import { THEMES, type ThemeId } from '../../styles/theme'
 import { SLIDE_TYPE_LABELS, defaultLineComparisonData } from '../../data/slideDefaults'
 import { newId } from '../../services/idGenerator'
@@ -33,6 +35,22 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return (
     <div>
       <label className="text-xs font-medium text-zeta-navy mb-1 block">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+/** 帶「是否顯示在PPT/PDF」勾選框的欄位包裝，勾選狀態存在 data.showFields 裡 */
+function ToggleField({ label, checked, onToggle, children }: { label: string; checked: boolean; onToggle: (v: boolean) => void; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-zeta-navy">{label}</label>
+        <label className="flex items-center gap-1 text-[10px] text-zeta-text/60 cursor-pointer">
+          <input type="checkbox" checked={checked} onChange={(e) => onToggle(e.target.checked)} className="accent-zeta-gold" />
+          顯示在PPT
+        </label>
+      </div>
       {children}
     </div>
   )
@@ -79,7 +97,7 @@ export function ContentEditPanel({ slide, defaultTheme, onDataChange, onLayoutCh
       {slide.type === 'beforeAfter' && <BeforeAfterForm data={slide.data as BeforeAfterData} layoutId={slide.layoutId} onChange={onDataChange} />}
       {slide.type === 'recommendation' && <RecommendationForm data={slide.data as RecommendationData} onChange={onDataChange} />}
       {slide.type === 'conclusion' && <ConclusionForm data={slide.data as ConclusionData} onChange={onDataChange} />}
-      {slide.type === 'custom' && <CustomForm data={slide.data as CustomSlideData} onChange={onDataChange} />}
+      {slide.type === 'custom' && <CustomForm data={slide.data as CustomSlideData} layoutId={slide.layoutId} onChange={onDataChange} />}
       {slide.type === 'accountAllocation' && <AccountAllocationForm data={slide.data as AccountAllocationData} onChange={onDataChange} />}
     </div>
   )
@@ -157,10 +175,20 @@ function BeforeAfterForm({ data, layoutId, onChange }: { data: BeforeAfterData; 
         <Field label="右側標籤"><TextInput value={data.afterLabel} onChange={(e) => set({ afterLabel: e.target.value })} /></Field>
       </div>
       <Field label={`${data.beforeLabel || '調整前'} 資產項目`}>
-        <AssetItemListEditor items={data.beforeItems} onChange={(items) => set({ beforeItems: items })} />
+        <AssetItemListEditor
+          items={data.beforeItems}
+          onChange={(items) => set({ beforeItems: items })}
+          showReturnRate={layoutId === 'lineComparison'}
+          defaultReturnRate={data.lineComparison?.beforeAnnualReturnRate}
+        />
       </Field>
       <Field label={`${data.afterLabel || '調整後'} 資產項目`}>
-        <AssetItemListEditor items={data.afterItems} onChange={(items) => set({ afterItems: items })} />
+        <AssetItemListEditor
+          items={data.afterItems}
+          onChange={(items) => set({ afterItems: items })}
+          showReturnRate={layoutId === 'lineComparison'}
+          defaultReturnRate={data.lineComparison?.afterAnnualReturnRate}
+        />
       </Field>
       <Field label="差額說明（例如：預留旅遊金、支付保費、償還負債…）">
         <TextInput value={data.differenceNote} onChange={(e) => set({ differenceNote: e.target.value })} placeholder="說明調整前後總額差異的用途" />
@@ -207,6 +235,9 @@ function AccountAllocationForm({ data, onChange }: { data: AccountAllocationData
 
 function RecommendationForm({ data, onChange }: { data: RecommendationData; onChange: (d: RecommendationData) => void }) {
   const set = (patch: Partial<RecommendationData>) => onChange({ ...data, ...patch })
+  const toggleShow = (key: keyof RecommendationData, value: boolean) => set({ showFields: { ...data.showFields, [key]: value } })
+  const isShown = (key: keyof RecommendationData) => data.showFields?.[key] !== false
+
   return (
     <div className="space-y-3">
       <Field label="頁面主題"><TextInput value={data.heading} onChange={(e) => set({ heading: e.target.value })} /></Field>
@@ -226,17 +257,31 @@ function RecommendationForm({ data, onChange }: { data: RecommendationData; onCh
         <Field label="規劃期間（年）"><TextInput type="number" value={data.durationYears} onChange={(e) => set({ durationYears: Number(e.target.value) })} /></Field>
         <Field label="預估年化報酬率（%）"><TextInput type="number" value={data.estimatedAnnualReturn} onChange={(e) => set({ estimatedAnnualReturn: Number(e.target.value) })} /></Field>
       </div>
-      <Field label="預估成果說明"><RichTextEditor value={data.estimatedResult} onChange={(v) => set({ estimatedResult: v })} minimal /></Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="預計提取時間"><TextInput value={data.withdrawTiming} onChange={(e) => set({ withdrawTiming: e.target.value })} /></Field>
-        <Field label="提取方式"><TextInput value={data.withdrawMethod} onChange={(e) => set({ withdrawMethod: e.target.value })} /></Field>
-      </div>
-      <StringListEditor label="方案優勢" items={data.advantages} onChange={(v) => set({ advantages: v })} />
+      <ToggleField label="預估成果說明" checked={isShown('estimatedResult')} onToggle={(v) => toggleShow('estimatedResult', v)}>
+        <RichTextEditor value={data.estimatedResult} onChange={(v) => set({ estimatedResult: v })} minimal />
+      </ToggleField>
+      <ToggleField label="提取時間與方式" checked={isShown('withdrawTiming')} onToggle={(v) => toggleShow('withdrawTiming', v)}>
+        <div className="grid grid-cols-2 gap-2">
+          <TextInput value={data.withdrawTiming} onChange={(e) => set({ withdrawTiming: e.target.value })} placeholder="預計提取時間" />
+          <TextInput value={data.withdrawMethod} onChange={(e) => set({ withdrawMethod: e.target.value })} placeholder="提取方式" />
+        </div>
+      </ToggleField>
+      <ToggleField label="方案優勢" checked={isShown('advantages')} onToggle={(v) => toggleShow('advantages', v)}>
+        <StringListEditor label="" items={data.advantages} onChange={(v) => set({ advantages: v })} />
+      </ToggleField>
       <StringListEditor label="執行步驟" items={data.steps} onChange={(v) => set({ steps: v })} />
-      <StringListEditor label="注意事項" items={data.cautions} onChange={(v) => set({ cautions: v })} />
-      <StringListEditor label="風險提醒" items={data.riskNotes} onChange={(v) => set({ riskNotes: v })} />
-      <Field label="顧問補充說明"><RichTextEditor value={data.advisorNote} onChange={(v) => set({ advisorNote: v })} minimal /></Field>
-      <ImageUploadField label="圖片" value={data.image} onChange={(v) => set({ image: v })} />
+      <ToggleField label="注意事項" checked={isShown('cautions')} onToggle={(v) => toggleShow('cautions', v)}>
+        <StringListEditor label="" items={data.cautions} onChange={(v) => set({ cautions: v })} />
+      </ToggleField>
+      <ToggleField label="風險提醒" checked={isShown('riskNotes')} onToggle={(v) => toggleShow('riskNotes', v)}>
+        <StringListEditor label="" items={data.riskNotes} onChange={(v) => set({ riskNotes: v })} />
+      </ToggleField>
+      <ToggleField label="顧問補充說明" checked={isShown('advisorNote')} onToggle={(v) => toggleShow('advisorNote', v)}>
+        <RichTextEditor value={data.advisorNote} onChange={(v) => set({ advisorNote: v })} minimal />
+      </ToggleField>
+      <ToggleField label="圖片" checked={isShown('image')} onToggle={(v) => toggleShow('image', v)}>
+        <ImageUploadField label="" value={data.image} onChange={(v) => set({ image: v })} />
+      </ToggleField>
     </div>
   )
 }
@@ -268,7 +313,7 @@ function ConclusionForm({ data, onChange }: { data: ConclusionData; onChange: (d
   )
 }
 
-function CustomForm({ data, onChange }: { data: CustomSlideData; onChange: (d: CustomSlideData) => void }) {
+function CustomForm({ data, layoutId, onChange }: { data: CustomSlideData; layoutId: string; onChange: (d: CustomSlideData) => void }) {
   const set = (patch: Partial<CustomSlideData>) => onChange({ ...data, ...patch })
   const updateHighlight = (id: string, patch: Partial<CustomSlideData['highlights'][number]>) =>
     set({ highlights: data.highlights.map((h) => (h.id === id ? { ...h, ...patch } : h)) })
@@ -281,6 +326,10 @@ function CustomForm({ data, onChange }: { data: CustomSlideData; onChange: (d: C
       <Field label="標題"><TextInput value={data.title} onChange={(e) => set({ title: e.target.value })} /></Field>
       <Field label="副標題"><TextInput value={data.subtitle} onChange={(e) => set({ subtitle: e.target.value })} /></Field>
       <Field label="內文"><RichTextEditor value={data.body} onChange={(v) => set({ body: v })} /></Field>
+
+      <Field label="內文版面設定">
+        <BodyTextStyleEditor style={data.bodyStyle} onChange={(bodyStyle) => set({ bodyStyle })} />
+      </Field>
 
       <Field label="重點項目">
         <div className="space-y-2">
@@ -299,7 +348,13 @@ function CustomForm({ data, onChange }: { data: CustomSlideData; onChange: (d: C
         </div>
       </Field>
 
-      <ImageUploadField label="圖片" value={data.image} onChange={(v) => set({ image: v })} />
+      {layoutId === 'imageText' ? (
+        <Field label="圖片區塊（可拖曳／縮放，或直接輸入數值）">
+          <ImageBlockField block={data.imageBlock} onChange={(imageBlock) => set({ imageBlock })} />
+        </Field>
+      ) : (
+        <ImageUploadField label="圖片" value={data.image} onChange={(v) => set({ image: v })} />
+      )}
       <Field label="備註"><TextInput value={data.note ?? ''} onChange={(e) => set({ note: e.target.value })} /></Field>
     </div>
   )

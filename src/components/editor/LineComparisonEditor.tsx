@@ -63,10 +63,10 @@ export function LineComparisonEditor({ data, onChange }: Props) {
 
       {data.mode === 'auto' ? (
         <div className="grid grid-cols-2 gap-2">
-          <Field label="起始資產"><Num value={data.startAmount} onChange={(e) => set({ startAmount: Number(e.target.value) })} /></Field>
+          <Field label="起始資產（僅在上方尚未輸入任何資產項目時使用）"><Num value={data.startAmount} onChange={(e) => set({ startAmount: Number(e.target.value) })} /></Field>
           <Field label="規劃期數"><Num value={data.periods} onChange={(e) => set({ periods: Number(e.target.value) })} /></Field>
-          <Field label="調整前報酬率(%)"><Num value={data.beforeAnnualReturnRate} onChange={(e) => set({ beforeAnnualReturnRate: Number(e.target.value) })} /></Field>
-          <Field label="調整後報酬率(%)"><Num value={data.afterAnnualReturnRate} onChange={(e) => set({ afterAnnualReturnRate: Number(e.target.value) })} /></Field>
+          <Field label="調整前預設報酬率(%)"><Num value={data.beforeAnnualReturnRate} onChange={(e) => set({ beforeAnnualReturnRate: Number(e.target.value) })} /></Field>
+          <Field label="調整後預設報酬率(%)"><Num value={data.afterAnnualReturnRate} onChange={(e) => set({ afterAnnualReturnRate: Number(e.target.value) })} /></Field>
           <Field label="每期投入金額"><Num value={data.contributionAmount} onChange={(e) => set({ contributionAmount: Number(e.target.value) })} /></Field>
           <Field label="複利計算">
             <label className="flex items-center gap-1.5 text-xs mt-1.5">

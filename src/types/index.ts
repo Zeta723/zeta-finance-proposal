@@ -45,6 +45,8 @@ export interface AssetItem {
   color: string
   note?: string
   visible: boolean
+  /** 該項目自己的預估年化報酬率（%），用於「資產成長折線比較圖」逐項試算；未設定時使用該側的預設報酬率 */
+  annualReturnRate?: number
 }
 
 export type CurrencyCode = 'TWD' | 'USD' | 'CUSTOM'
@@ -187,6 +189,40 @@ export interface CustomHighlightItem {
   number?: string
 }
 
+/**
+ * 圖片區塊：位置／大小／顯示模式都是獨立可調整的設定，儲存在投影片資料中
+ * （不是暫存畫面狀態），x/y/width/height 皆為投影片的百分比座標（0-100），
+ * 與投影片實際顯示尺寸（縮放倍率）無關，確保網頁預覽／PDF／PPT三邊算出同樣位置。
+ */
+export interface ImageBlock {
+  id: string
+  src: string
+  x: number
+  y: number
+  width: number
+  height: number
+  objectFit: 'contain' | 'cover' | 'original' | 'free'
+  opacity: number
+  borderRadius: number
+  zIndex: number
+  aspectRatioLocked: boolean
+  /** 圖片原始寬高比（width/height），用於鎖定比例時的縮放計算 */
+  naturalAspectRatio?: number
+}
+
+/** 內文文字區塊的版面設定（整段套用，不影響 Rich Text 內的局部格式） */
+export interface TextBlockStyle {
+  fontSize: number
+  lineHeight: number
+  textAlign: 'left' | 'center' | 'right'
+  letterSpacing: number
+  paragraphSpacing: number
+}
+
+export function defaultTextBlockStyle(): TextBlockStyle {
+  return { fontSize: 16, lineHeight: 1.6, textAlign: 'left', letterSpacing: 0, paragraphSpacing: 8 }
+}
+
 export interface CustomSlideData {
   heading: string
   title: string
@@ -195,6 +231,10 @@ export interface CustomSlideData {
   highlights: CustomHighlightItem[]
   image?: ImageAsset
   note?: string
+  /** 新版可自由拖曳/縮放的圖片區塊。存在時優先於舊版 `image` 欄位使用。 */
+  imageBlock?: ImageBlock
+  /** 內文區塊的字體大小/行高/對齊等版面設定 */
+  bodyStyle?: TextBlockStyle
 }
 
 // ---------- 收入與帳戶分配圖 ----------

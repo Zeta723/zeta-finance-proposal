@@ -8,10 +8,14 @@ import { BRAND_COLOR_SWATCHES } from '../richtext/RichTextEditor'
 interface Props {
   items: AssetItem[]
   onChange: (items: AssetItem[]) => void
+  /** 顯示每個項目自己的年化報酬率輸入欄（用於「資產成長折線比較圖」逐項試算） */
+  showReturnRate?: boolean
+  /** 該側（調整前／調整後）沒有個別設定報酬率時使用的預設值，僅供欄位提示顯示 */
+  defaultReturnRate?: number
 }
 
-/** 資產項目清單編輯器：新增、刪除、改名、改金額、改顏色、顯示/隱藏、備註 */
-export function AssetItemListEditor({ items, onChange }: Props) {
+/** 資產項目清單編輯器：新增、刪除、改名、改金額、改顏色、顯示/隱藏、備註，可選逐項報酬率 */
+export function AssetItemListEditor({ items, onChange, showReturnRate, defaultReturnRate }: Props) {
   const update = (id: string, patch: Partial<AssetItem>) => {
     onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)))
   }
@@ -71,6 +75,20 @@ export function AssetItemListEditor({ items, onChange }: Props) {
               placeholder="備註（選填）"
             />
           </div>
+          {showReturnRate && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-zeta-text/50 shrink-0">此項目年化報酬率</span>
+              <input
+                type="number"
+                step={0.1}
+                value={item.annualReturnRate ?? ''}
+                onChange={(e) => update(item.id, { annualReturnRate: e.target.value === '' ? undefined : Number(e.target.value) })}
+                placeholder={defaultReturnRate !== undefined ? `預設 ${defaultReturnRate}%` : '未設定則用預設值'}
+                className="w-28 text-xs border border-zeta-bg rounded-md px-2 py-1 text-right focus:outline-none focus:border-zeta-gold"
+              />
+              <span className="text-[10px] text-zeta-text/40">%</span>
+            </div>
+          )}
         </div>
       ))}
       <button onClick={add} className="w-full flex items-center justify-center gap-1 text-xs py-2 rounded-lg border border-dashed border-zeta-gold/60 text-zeta-navy hover:bg-zeta-gold/10">

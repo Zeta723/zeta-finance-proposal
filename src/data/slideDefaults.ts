@@ -9,6 +9,7 @@ import type {
   ConclusionData,
   CoverData,
   CustomSlideData,
+  ImageBlock,
   LineComparisonData,
   ProposalSlide,
   RecommendationData,
@@ -134,6 +135,23 @@ export function defaultConclusionData(): ConclusionData {
     contact: '',
     instagram: '',
     website: ''
+  }
+}
+
+export function defaultImageBlock(src: string, naturalAspectRatio?: number): ImageBlock {
+  return {
+    id: newId(),
+    src,
+    x: 50,
+    y: 18,
+    width: 46,
+    height: 76,
+    objectFit: 'cover',
+    opacity: 100,
+    borderRadius: 16,
+    zIndex: 1,
+    aspectRatioLocked: true,
+    naturalAspectRatio
   }
 }
 

@@ -6,35 +6,35 @@ import type { RichTextContent } from '../../types'
  * 用在投影片預覽／縮圖，避免大量頁面同時渲染時效能過重。
  * 讀取的是與 RichTextEditor 相同的 Tiptap JSON 結構。
  */
-export function RichTextView({ value, className, style }: { value: RichTextContent; className?: string; style?: React.CSSProperties }) {
+export function RichTextView({ value, className, style, paragraphSpacing }: { value: RichTextContent; className?: string; style?: React.CSSProperties; paragraphSpacing?: number }) {
   if (!value || typeof value !== 'object') return null
   const doc = value as any
-  return <div className={className} style={style}>{renderNodes(doc.content ?? [])}</div>
+  return <div className={className} style={style}>{renderNodes(doc.content ?? [], paragraphSpacing)}</div>
 }
 
-function renderNodes(nodes: any[]): React.ReactNode {
-  return nodes.map((node, i) => renderNode(node, i))
+function renderNodes(nodes: any[], paragraphSpacing?: number): React.ReactNode {
+  return nodes.map((node, i) => renderNode(node, i, paragraphSpacing))
 }
 
-function renderNode(node: any, key: number): React.ReactNode {
+function renderNode(node: any, key: number, paragraphSpacing?: number): React.ReactNode {
   switch (node.type) {
     case 'paragraph': {
       const align = node.attrs?.textAlign
       return (
-        <p key={key} style={{ textAlign: align, margin: 0 }}>
+        <p key={key} style={{ textAlign: align, margin: 0, marginBottom: paragraphSpacing ?? 0 }}>
           {node.content ? renderInline(node.content) : <br />}
         </p>
       )
     }
     case 'bulletList':
       return (
-        <ul key={key} className="list-disc pl-5">
+        <ul key={key} className="list-disc pl-5" style={{ marginBottom: paragraphSpacing ?? 0 }}>
           {node.content?.map((li: any, i: number) => <li key={i}>{renderNodes(li.content ?? [])}</li>)}
         </ul>
       )
     case 'orderedList':
       return (
-        <ol key={key} className="list-decimal pl-5">
+        <ol key={key} className="list-decimal pl-5" style={{ marginBottom: paragraphSpacing ?? 0 }}>
           {node.content?.map((li: any, i: number) => <li key={i}>{renderNodes(li.content ?? [])}</li>)}
         </ol>
       )
@@ -56,6 +56,7 @@ function renderInline(content: any[]): React.ReactNode {
       if (mark.type === 'underline') el = <u>{el}</u>
       if (mark.type === 'strike') el = <s>{el}</s>
       if (mark.type === 'textStyle' && mark.attrs?.color) style.color = mark.attrs.color
+      if (mark.type === 'textStyle' && mark.attrs?.fontSize) style.fontSize = `${mark.attrs.fontSize}px`
       if (mark.type === 'highlight') highlightColor = mark.attrs?.color ?? '#E8DCCB'
     }
 

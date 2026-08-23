@@ -6,6 +6,7 @@ import TextStyle from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import TextAlign from '@tiptap/extension-text-align'
+import { FontSize } from './FontSizeExtension'
 import {
   Bold,
   Italic,
@@ -17,10 +18,13 @@ import {
   List,
   ListOrdered,
   Eraser,
-  Sparkles
+  Sparkles,
+  Minus,
+  Plus
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { RichTextContent } from '../../types'
+import { useToast } from '../common/Toast'
 
 export const BRAND_COLOR_SWATCHES: { label: string; value: string }[] = [
   { label: '深藍色', value: '#19324A' },
@@ -31,6 +35,8 @@ export const BRAND_COLOR_SWATCHES: { label: string; value: string }[] = [
   { label: '綠色正向', value: '#4F7965' },
   { label: '白色', value: '#FFFFFF' }
 ]
+
+const FONT_SIZE_PRESETS = [16, 20, 24, 28, 32, 36, 40]
 
 interface RichTextEditorProps {
   value: RichTextContent
@@ -43,14 +49,24 @@ interface RichTextEditorProps {
 /**
  * 結構化 Rich Text 編輯器（Tiptap）。
  * value/onChange 使用 Tiptap JSON，之後可安全轉換成 PptxGenJS 的 text runs。
+ *
+ * 重要（局部格式修正）：所有工具列按鈕都必須在 onMouseDown 時呼叫
+ * preventDefault()，否則瀏覽器會在 click 事件觸發前，先把 contentEditable
+ * 的焦點/選取範圍搶走或重置，導致格式指令套用範圍不正確（例如整段文字都
+ * 被套上樣式，而不是只有選取的那一小段）。每個格式指令也都改成單一原子
+ * chain 呼叫（一次 .run()），避免像舊版那樣建立了 chain 卻忘記 .run()
+ * 而完全沒有作用，或是分成好幾個獨立 chain 各自套用、彼此互相覆蓋。
  */
 export function RichTextEditor({ value, onChange, placeholder, editable = true, minimal = false }: RichTextEditorProps) {
+  const { showToast } = useToast()
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: false }),
       Underline,
       TextStyle,
       Color,
+      FontSize,
       Highlight.configure({ multicolor: true }),
       TextAlign.configure({ types: ['paragraph'] })
     ],
@@ -69,11 +85,40 @@ export function RichTextEditor({ value, onChange, placeholder, editable = true, 
 
   if (!editor) return null
 
-  const setHighlightPreset = (color: string, bold: boolean) => {
-    editor.chain().focus().setColor(color)
-    if (bold) editor.chain().focus().setColor(color).run()
-    editor.chain().focus().setMark('textStyle', { color }).run()
-    if (bold && !editor.isActive('bold')) editor.chain().focus().toggleBold().run()
+  /** 設為重點：只套用在目前選取的文字；沒有選取任何文字時提示使用者，不會整段套用。 */
+  const applyHighlightPreset = () => {
+    if (editor.state.selection.empty) {
+      showToast('請先選取要標示的文字。', 'warning')
+      return
+    }
+    editor.chain().focus().setColor('#D3AF37').setBold().run()
+  }
+
+  const clearSelectionFormatting = () => {
+    if (editor.state.selection.empty) {
+      showToast('請先選取要清除格式的文字。', 'warning')
+      return
+    }
+    editor.chain().focus().unsetAllMarks().run()
+  }
+
+  const currentFontSize = (editor.getAttributes('textStyle').fontSize as number | undefined) ?? null
+
+  const setFontSize = (size: number) => {
+    if (editor.state.selection.empty) {
+      showToast('請先選取要調整大小的文字。', 'warning')
+      return
+    }
+    editor.chain().focus().setFontSize(size).run()
+  }
+
+  const bumpFontSize = (delta: number) => {
+    if (editor.state.selection.empty) {
+      showToast('請先選取要調整大小的文字。', 'warning')
+      return
+    }
+    const base = currentFontSize ?? 16
+    setFontSize(Math.min(96, Math.max(8, base + delta)))
   }
 
   return (
@@ -121,20 +166,63 @@ export function RichTextEditor({ value, onChange, placeholder, editable = true, 
             icon={ListOrdered}
             label="編號清單"
           />
+          {!minimal && (
+            <>
+              <div className="w-px h-5 bg-zeta-bg mx-1" />
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => bumpFontSize(-2)}
+                title="縮小選取文字"
+                className="p-1.5 rounded-md text-zeta-text/70 hover:bg-zeta-bg"
+              >
+                <Minus size={13} />
+              </button>
+              <select
+                value={currentFontSize ?? ''}
+                onMouseDown={(e) => e.preventDefault()}
+                onChange={(e) => {
+                  const size = Number(e.target.value)
+                  if (size) setFontSize(size)
+                  editor.chain().focus().run()
+                }}
+                className="text-xs border border-zeta-bg rounded-md px-1 py-1 w-14 bg-white"
+                title="選取文字的字體大小"
+              >
+                <option value="">字級</option>
+                {FONT_SIZE_PRESETS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => bumpFontSize(2)}
+                title="放大選取文字"
+                className="p-1.5 rounded-md text-zeta-text/70 hover:bg-zeta-bg"
+              >
+                <Plus size={13} />
+              </button>
+            </>
+          )}
           <div className="w-px h-5 bg-zeta-bg mx-1" />
           {!minimal && (
             <div className="flex items-center gap-1">
               {BRAND_COLOR_SWATCHES.map((c) => (
                 <button
                   key={c.value}
+                  type="button"
                   title={c.label}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => editor.chain().focus().setColor(c.value).run()}
                   className="w-5 h-5 rounded-full border border-black/10"
                   style={{ backgroundColor: c.value }}
                 />
               ))}
               <button
+                type="button"
                 title="標記背景色"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => editor.chain().focus().toggleHighlight({ color: '#E8DCCB' }).run()}
                 className="w-5 h-5 rounded-full border border-black/10 bg-zeta-cream flex items-center justify-center"
               />
@@ -142,16 +230,20 @@ export function RichTextEditor({ value, onChange, placeholder, editable = true, 
           )}
           <div className="w-px h-5 bg-zeta-bg mx-1" />
           <button
-            onClick={() => setHighlightPreset('#D3AF37', true)}
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={applyHighlightPreset}
             className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-zeta-gold/15 text-zeta-navy hover:bg-zeta-gold/25"
-            title="設為重點：品牌金＋粗體"
+            title="設為重點：僅套用在選取的文字（品牌金＋粗體）"
           >
             <Sparkles size={13} /> 設為重點
           </button>
           <button
-            onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={clearSelectionFormatting}
             className="flex items-center gap-1 px-2 py-1 rounded-full text-xs text-zeta-text/60 hover:bg-zeta-bg"
-            title="清除格式"
+            title="清除選取文字的格式"
           >
             <Eraser size={13} /> 清除格式
           </button>
@@ -182,6 +274,7 @@ function ToolBtn({
     <button
       type="button"
       title={label}
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className={`p-1.5 rounded-md transition-colors ${active ? 'bg-zeta-navy text-white' : 'text-zeta-text/70 hover:bg-zeta-bg'}`}
     >

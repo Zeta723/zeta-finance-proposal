@@ -1,7 +1,30 @@
 import type pptxgen from 'pptxgenjs'
-import type { CustomSlideData, ProposalSlide } from '../../types'
+import type { CustomSlideData, ImageBlock, ProposalSlide } from '../../types'
 import type { ZetaTheme } from '../../styles/theme'
 import { PPT_FONT, SLIDE_H, SLIDE_W, hex, richTextToPptxRuns } from '../pptxHelpers'
+
+/** 依 imageBlock 的百分比座標換算成投影片實際英吋座標，並加入圖片 */
+function addImageBlock(s: pptxgen.Slide, block: ImageBlock) {
+  const x = (block.x / 100) * SLIDE_W
+  const y = (block.y / 100) * SLIDE_H
+  const w = (block.width / 100) * SLIDE_W
+  const h = (block.height / 100) * SLIDE_H
+
+  const sizingType = block.objectFit === 'contain' ? 'contain' : block.objectFit === 'cover' ? 'cover' : undefined
+
+  s.addImage({
+    data: block.src,
+    x,
+    y,
+    w,
+    h,
+    ...(sizingType ? { sizing: { type: sizingType, w, h } } : {}),
+    // PptxGenJS 的 rounding 是二元的圓角/橢圓效果，無法對應網頁預覽的任意像素圓角，
+    // 這裡以「有設定圓角就套用 rounding」做最接近的近似呈現。
+    rounding: block.borderRadius > 0,
+    transparency: Math.round(100 - block.opacity)
+  })
+}
 
 export function exportCustomSlide(pptx: pptxgen, slide: ProposalSlide<CustomSlideData>, theme: ZetaTheme) {
   const s = pptx.addSlide()
@@ -16,10 +39,20 @@ export function exportCustomSlide(pptx: pptxgen, slide: ProposalSlide<CustomSlid
   }
 
   const layout = slide.layoutId
+  const bodyFontSize = d.bodyStyle?.fontSize ? Math.round(d.bodyStyle.fontSize * 0.75) : undefined // px → pt 概略換算
 
-  if (layout === 'imageText' && d.image?.dataUrl) {
-    s.addImage({ data: d.image.dataUrl, x: 7.4, y: 1.7, w: 5.3, h: 4.6, sizing: { type: 'cover', w: 5.3, h: 4.6 }, rounding: true })
-    if (d.body) s.addText(richTextToPptxRuns(d.body, { fontSize: 13, color: hex(theme.text) }), { x: 0.6, y: 1.7, w: 6.5, h: 4.6, fontFace: PPT_FONT })
+  if (layout === 'imageText') {
+    if (d.imageBlock) {
+      addImageBlock(s, d.imageBlock)
+    } else if (d.image?.dataUrl) {
+      // 舊版資料相容：沒有 imageBlock 時維持原本固定位置的顯示方式
+      s.addImage({ data: d.image.dataUrl, x: 7.4, y: 1.7, w: 5.3, h: 4.6, sizing: { type: 'cover', w: 5.3, h: 4.6 }, rounding: true })
+    }
+    if (d.body) {
+      s.addText(richTextToPptxRuns(d.body, { fontSize: bodyFontSize ?? 13, color: hex(theme.text), align: d.bodyStyle?.textAlign }), {
+        x: 0.6, y: 1.7, w: 6.5, h: 4.6, fontFace: PPT_FONT
+      })
+    }
   } else if (layout === 'threeCards' && d.highlights.length > 0) {
     const cardW = 3.9
     d.highlights.slice(0, 3).forEach((h, i) => {
@@ -32,7 +65,11 @@ export function exportCustomSlide(pptx: pptxgen, slide: ProposalSlide<CustomSlid
     })
   } else {
     // textHighlight（預設）
-    if (d.body) s.addText(richTextToPptxRuns(d.body, { fontSize: 14, color: hex(theme.text) }), { x: 0.6, y: 1.7, w: 8.4, h: 3.2, fontFace: PPT_FONT })
+    if (d.body) {
+      s.addText(richTextToPptxRuns(d.body, { fontSize: bodyFontSize ?? 14, color: hex(theme.text), align: d.bodyStyle?.textAlign }), {
+        x: 0.6, y: 1.7, w: 8.4, h: 3.2, fontFace: PPT_FONT
+      })
+    }
     let hy = 1.7
     d.highlights.slice(0, 4).forEach((h) => {
       s.addShape('roundRect', { x: 9.3, y: hy, w: 3.4, h: 1.0, fill: { color: hex(theme.white) }, line: { color: hex(theme.gold), width: 0.75 }, rectRadius: 0.1 })

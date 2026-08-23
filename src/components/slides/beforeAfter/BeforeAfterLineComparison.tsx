@@ -19,7 +19,7 @@ interface Props {
 export function BeforeAfterLineComparison({ slide, theme }: Props) {
   const d = slide.data
   const line = d.lineComparison ?? defaultLineComparisonData()
-  const points = resolveLineComparisonPoints(line)
+  const points = resolveLineComparisonPoints(line, d.beforeItems, d.afterItems)
   const fmt = (v: number) => `${currencyLabel(line.currency, line.customCurrencyLabel)}${Math.round(v).toLocaleString('zh-Hant-TW')}`
   const gap = finalGap(points)
 

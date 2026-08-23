@@ -119,7 +119,7 @@ function exportSideCards(s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme)
 
 function exportLineComparison(pptx: pptxgen, s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme, mode: PptChartMode) {
   const line = d.lineComparison ?? defaultLineComparisonData()
-  const points = resolveLineComparisonPoints(line)
+  const points = resolveLineComparisonPoints(line, d.beforeItems, d.afterItems)
   const fmt = (v: number) => `${currencyLabel(line.currency, line.customCurrencyLabel)}${Math.round(v).toLocaleString('zh-Hant-TW')}`
 
   s.addText(line.chartTitle || d.heading || '資產成長折線比較', { x: 0.6, y: 0.4, w: 10, h: 0.5, fontSize: 24, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })

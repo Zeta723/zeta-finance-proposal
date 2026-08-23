@@ -89,6 +89,7 @@ function pushInlineRuns(
       if (mark.type === 'underline') options.underline = { style: 'sng' }
       if (mark.type === 'strike') options.strike = 'sngStrike'
       if (mark.type === 'textStyle' && mark.attrs?.color) options.color = String(mark.attrs.color).replace('#', '')
+      if (mark.type === 'textStyle' && mark.attrs?.fontSize) options.fontSize = Number(mark.attrs.fontSize)
       if (mark.type === 'highlight') options.highlight = String(mark.attrs?.color ?? 'E8DCCB').replace('#', '')
     }
     runs.push({ text: textNode.text ?? '', options: options as any })

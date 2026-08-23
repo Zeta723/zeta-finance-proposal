@@ -57,6 +57,14 @@ function estimateBase64Bytes(dataUrl: string): number {
   return Math.round((base64.length * 3) / 4)
 }
 
+export async function loadImageNaturalSize(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
+    img.onerror = () => reject(new Error('IMAGE_LOAD_FAILED'))
+    img.src = dataUrl
+  })
+}
 /** 粗估目前 localStorage 已使用容量（近似值，用於容量提示） */
 export function estimateLocalStorageUsageBytes(): number {
   let total = 0

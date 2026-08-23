@@ -118,6 +118,7 @@ export function EditorPage({ initialProposal, onBack }: Props) {
             defaultTheme={editor.proposal.themeSettings.defaultTheme}
             onSelect={editor.setActiveSlideId}
             onOpenFullPreview={() => setFullPreviewOpen(true)}
+            onUpdateSlideData={editor.updateSlideData}
           />
         </div>
         <div className="w-96 shrink-0 min-h-0 border-l border-zeta-bg bg-white overflow-y-auto p-4">
@@ -158,6 +159,7 @@ export function EditorPage({ initialProposal, onBack }: Props) {
               defaultTheme={editor.proposal.themeSettings.defaultTheme}
               onSelect={editor.setActiveSlideId}
               onOpenFullPreview={() => setFullPreviewOpen(true)}
+              onUpdateSlideData={editor.updateSlideData}
             />
           )}
           {mobilePanel === 'edit' && (
