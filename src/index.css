@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --zeta-navy: #19324A;
+  --zeta-gold: #D3AF37;
+  --zeta-cream: #E8DCCB;
+  --zeta-ivory: #F8F5EF;
+  --zeta-white: #FFFFFF;
+  --zeta-text: #333333;
+  --zeta-bg: #F3F4F6;
+  --zeta-danger: #B54A4A;
+  --zeta-positive: #4F7965;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--zeta-bg);
+  color: var(--zeta-text);
+  font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+}
+
+/* Rich text 編輯區域基本樣式，讓 mark/strong/em 有正確呈現 */
+.zeta-richtext .ProseMirror {
+  outline: none;
+  min-height: 2.5em;
+}
+.zeta-richtext mark {
+  background-color: var(--zeta-cream);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.zeta-slide-canvas {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #D8CBB0; border-radius: 8px; }
