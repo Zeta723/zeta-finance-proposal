@@ -179,7 +179,7 @@ export function renderLineChartPng(
   const plotW = width - marginL - marginR
   const plotH = height - marginT - marginB
 
-  const allValues = series.flatMap((s) => s.values).concat(opts.referenceLine ? [opts.referenceLine.value] : [])
+  const allValues = series.flatMap((s) => s.values).concat(opts.referenceLine ? [opts.referenceLine.value] : []).filter((v) => Number.isFinite(v))
   const maxV = Math.max(1, ...allValues)
   const minV = Math.min(0, ...allValues)
   const range = maxV - minV || 1
@@ -227,24 +227,34 @@ export function renderLineChartPng(
     ctx.fillText(opts.referenceLine.label, width - marginR - 60, y - 8)
   }
 
-  // 折線
+  // 折線（數值為 NaN 的資料點代表該資產已超過自己的試算年限，線在這裡自然中斷，不連接、不延伸）
   series.forEach((s) => {
     ctx.beginPath()
     ctx.strokeStyle = s.color
     ctx.lineWidth = s.strokeWidth ?? 2.5
     if (s.dashed) ctx.setLineDash([6, 4])
     else ctx.setLineDash([])
+    let penDown = false
     s.values.forEach((v, i) => {
+      if (!Number.isFinite(v)) {
+        penDown = false
+        return
+      }
       const x = xFor(i)
       const y = yFor(v)
-      if (i === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
+      if (!penDown) {
+        ctx.moveTo(x, y)
+        penDown = true
+      } else {
+        ctx.lineTo(x, y)
+      }
     })
     ctx.stroke()
     ctx.setLineDash([])
 
     ctx.fillStyle = s.color
     s.values.forEach((v, i) => {
+      if (!Number.isFinite(v)) return
       ctx.beginPath()
       ctx.arc(xFor(i), yFor(v), 3, 0, Math.PI * 2)
       ctx.fill()

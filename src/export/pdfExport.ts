@@ -62,7 +62,7 @@ function createOffscreenContainer(): { clipWrapper: HTMLDivElement; container: H
   return { clipWrapper, container }
 }
 
-async function renderSlideToPng(slide: ProposalSlide, defaultTheme: Proposal['themeSettings']['defaultTheme']): Promise<string> {
+async function renderSlideToPng(slide: ProposalSlide, defaultTheme: Proposal['themeSettings']['defaultTheme'], currencySettings?: Proposal['currencySettings']): Promise<string> {
   const { clipWrapper, container } = createOffscreenContainer()
   const root = ReactDOM.createRoot(container)
 
@@ -75,7 +75,7 @@ async function renderSlideToPng(slide: ProposalSlide, defaultTheme: Proposal['th
         React.createElement(
           ExportRenderContext.Provider,
           { value: true },
-          React.createElement('div', { style: { width: RENDER_W, height: RENDER_H } }, React.createElement(SlideRenderer, { slide, defaultTheme }))
+          React.createElement('div', { style: { width: RENDER_W, height: RENDER_H } }, React.createElement(SlideRenderer, { slide, defaultTheme, currencySettings }))
         )
       )
       // 等待兩次 requestAnimationFrame，確保瀏覽器完成一次完整的版面配置與繪製
@@ -128,7 +128,7 @@ export async function exportProposalToPdf(proposal: Proposal, onProgress?: (p: P
     const slide = visibleSlides[i]
     onProgress?.({ current: i + 1, total: visibleSlides.length })
 
-    const png = await renderSlideToPng(slide, proposal.themeSettings.defaultTheme)
+    const png = await renderSlideToPng(slide, proposal.themeSettings.defaultTheme, proposal.currencySettings)
     if (i > 0) pdf.addPage([PAGE_W_MM, PAGE_H_MM], 'landscape')
     pdf.addImage(png, 'PNG', 0, 0, PAGE_W_MM, PAGE_H_MM, undefined, 'FAST')
   }

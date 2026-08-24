@@ -1,11 +1,14 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { Download, FileJson, Plus, Search, Upload } from 'lucide-react'
-import type { ClientInfo, Proposal, ProposalSummary } from '../../types'
+import type { ClientInfo, Proposal, ProposalCategory, ProposalSummary } from '../../types'
 import { proposalStorage } from '../../services/storageService'
+import { listCategories, createCategory, renameCategory, deleteCategory } from '../../services/categoryService'
 import { SCHEMA_VERSION } from '../../types'
 import { newId, nowISO } from '../../services/idGenerator'
 import { ProposalCard } from './ProposalCard'
 import { NewProposalModal } from './NewProposalModal'
+import { ManageCategoriesModal } from './ManageCategoriesModal'
+import { CategoryTabs } from './CategoryTabs'
 import { EmptyState } from '../common/EmptyState'
 import { ConfirmDialog } from '../common/ConfirmDialog'
 import { Modal } from '../common/Modal'
@@ -21,6 +24,9 @@ interface Props {
 export function ProposalListPage({ onOpenProposal }: Props) {
   const { showToast } = useToast()
   const [summaries, setSummaries] = useState<ProposalSummary[]>(() => proposalStorage.listSummaries())
+  const [categories, setCategories] = useState<ProposalCategory[]>(() => listCategories())
+  const [activeCategoryId, setActiveCategoryId] = useState<string | 'all' | 'uncategorized'>('all')
+  const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [newOpen, setNewOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -31,12 +37,34 @@ export function ProposalListPage({ onOpenProposal }: Props) {
   const backupImportRef = useRef<HTMLInputElement>(null)
 
   const refresh = () => setSummaries(proposalStorage.listSummaries())
+  const refreshCategories = () => setCategories(listCategories())
+
+  const validCategoryIds = useMemo(() => new Set(categories.map((c) => c.id)), [categories])
+
+  const countByCategory = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const s of summaries) {
+      if (s.categoryId && validCategoryIds.has(s.categoryId)) counts[s.categoryId] = (counts[s.categoryId] ?? 0) + 1
+    }
+    return counts
+  }, [summaries, validCategoryIds])
+
+  const countUncategorized = useMemo(
+    () => summaries.filter((s) => !s.categoryId || !validCategoryIds.has(s.categoryId)).length,
+    [summaries, validCategoryIds]
+  )
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return summaries
-    return summaries.filter((s) => s.name.toLowerCase().includes(q) || s.clientName.toLowerCase().includes(q) || s.topic.toLowerCase().includes(q))
-  }, [summaries, query])
+    let list = summaries
+    if (activeCategoryId === 'uncategorized') {
+      list = list.filter((s) => !s.categoryId || !validCategoryIds.has(s.categoryId))
+    } else if (activeCategoryId !== 'all') {
+      list = list.filter((s) => s.categoryId === activeCategoryId)
+    }
+    if (!q) return list
+    return list.filter((s) => s.name.toLowerCase().includes(q) || s.clientName.toLowerCase().includes(q) || s.topic.toLowerCase().includes(q))
+  }, [summaries, query, activeCategoryId, validCategoryIds])
 
   const handleCreate = (client: ClientInfo) => {
     const now = nowISO()
@@ -47,7 +75,8 @@ export function ProposalListPage({ onOpenProposal }: Props) {
       slides: [],
       themeSettings: { defaultTheme: 'classicNavyGold' },
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      categoryId: activeCategoryId !== 'all' && activeCategoryId !== 'uncategorized' ? activeCategoryId : undefined
     }
     proposalStorage.saveProposal(proposal)
     setNewOpen(false)
@@ -88,6 +117,31 @@ export function ProposalListPage({ onOpenProposal }: Props) {
     proposalStorage.saveProposal(p)
     setRenameTarget(null)
     refresh()
+  }
+
+  const handleSetCategory = (id: string, categoryId: string | undefined) => {
+    const p = proposalStorage.getProposal(id)
+    if (!p) return
+    p.categoryId = categoryId
+    proposalStorage.saveProposal(p)
+    refresh()
+  }
+
+  const handleCreateCategory = (name: string) => {
+    createCategory(name)
+    refreshCategories()
+  }
+  const handleRenameCategory = (id: string, name: string) => {
+    renameCategory(id, name)
+    refreshCategories()
+  }
+  const handleDeleteCategory = (id: string) => {
+    deleteCategory(id)
+    refreshCategories()
+    if (activeCategoryId === id) setActiveCategoryId('all')
+    // 分類刪除後，該分類內的專案不會被刪除，只是 categoryId 變成找不到對應分類 —— 已自動視為「未分類」，不需要額外處理
+    refresh()
+    showToast('分類已刪除，原本的專案已自動移到「未分類」。', 'success')
   }
 
   const handleExportJSON = (id: string) => {
@@ -193,6 +247,18 @@ export function ProposalListPage({ onOpenProposal }: Props) {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-6">
+        <div className="mb-4">
+          <CategoryTabs
+            categories={categories}
+            activeCategoryId={activeCategoryId}
+            countAll={summaries.length}
+            countUncategorized={countUncategorized}
+            countByCategory={countByCategory}
+            onSelect={setActiveCategoryId}
+            onManage={() => setManageCategoriesOpen(true)}
+          />
+        </div>
+
         <div className="relative max-w-sm mb-6">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zeta-text/40" />
           <input
@@ -207,7 +273,7 @@ export function ProposalListPage({ onOpenProposal }: Props) {
           <EmptyState
             icon={FileText}
             title={summaries.length === 0 ? '還沒有任何提案' : '找不到符合的提案'}
-            description={summaries.length === 0 ? '建立第一份提案，開始為客戶製作專屬的財務規劃簡報。' : '試試其他關鍵字。'}
+            description={summaries.length === 0 ? '建立第一份提案，開始為客戶製作專屬的財務規劃簡報。' : '試試其他關鍵字或切換分類。'}
             action={
               summaries.length === 0 && (
                 <button onClick={() => setNewOpen(true)} className="px-5 py-2 rounded-full bg-zeta-navy text-white text-sm hover:opacity-90">
@@ -222,10 +288,12 @@ export function ProposalListPage({ onOpenProposal }: Props) {
               <ProposalCard
                 key={s.id}
                 summary={s}
+                categories={categories}
                 onOpen={() => handleOpen(s.id)}
                 onDuplicate={() => handleDuplicate(s.id)}
                 onRename={() => { setRenameTarget(s); setRenameValue(s.name) }}
                 onDelete={() => setDeleteId(s.id)}
+                onSetCategory={(categoryId) => handleSetCategory(s.id, categoryId)}
                 onExportPptx={() => handleExportPptx(s.id)}
                 onExportKeynotePptx={() => handleExportKeynotePptx(s.id)}
                 onExportPdf={() => handleExportPdf(s.id)}
@@ -237,6 +305,16 @@ export function ProposalListPage({ onOpenProposal }: Props) {
       </main>
 
       <NewProposalModal open={newOpen} onClose={() => setNewOpen(false)} onCreate={handleCreate} />
+
+      <ManageCategoriesModal
+        open={manageCategoriesOpen}
+        onClose={() => setManageCategoriesOpen(false)}
+        categories={categories}
+        proposalCountByCategory={countByCategory}
+        onCreate={handleCreateCategory}
+        onRename={handleRenameCategory}
+        onDelete={handleDeleteCategory}
+      />
 
       <ConfirmDialog
         open={!!deleteId}

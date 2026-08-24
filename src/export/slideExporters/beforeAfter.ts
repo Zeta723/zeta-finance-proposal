@@ -1,17 +1,20 @@
 import type pptxgen from 'pptxgenjs'
-import type { AssetItem, BeforeAfterData, ProposalSlide } from '../../types'
+import type { AssetItem, BeforeAfterData, CurrencySettings, ProposalSlide } from '../../types'
 import type { ZetaTheme } from '../../styles/theme'
 import { PPT_FONT, SLIDE_H, SLIDE_W, formatAmount, hex, addChartImage, type PptChartMode } from '../pptxHelpers'
 import { renderPieChartPng, renderLineChartPng } from '../chartRenderer'
 import { resolveLineComparisonPoints, finalGap } from '../../services/lineComparisonCalc'
+import { computeAllGrowthAssetSeries, maxTotalYears } from '../../services/growthAssetCalc'
+import { formatMoney } from '../../services/currencyService'
 import { defaultLineComparisonData } from '../../data/slideDefaults'
+import { defaultCurrencySettings } from '../../types'
 import { currencyLabel } from '../pptxHelpers'
 
 function sumVisible(items: AssetItem[]): number {
   return items.filter((i) => i.visible).reduce((s, i) => s + Math.max(0, i.amount), 0)
 }
 
-export function exportBeforeAfterSlide(pptx: pptxgen, slide: ProposalSlide<BeforeAfterData>, theme: ZetaTheme, mode: PptChartMode) {
+export function exportBeforeAfterSlide(pptx: pptxgen, slide: ProposalSlide<BeforeAfterData>, theme: ZetaTheme, mode: PptChartMode, currencySettings?: CurrencySettings) {
   const s = pptx.addSlide()
   const d = slide.data
   s.background = { color: hex(theme.bgPrimary) }
@@ -21,7 +24,7 @@ export function exportBeforeAfterSlide(pptx: pptxgen, slide: ProposalSlide<Befor
       exportSideCards(s, d, theme)
       break
     case 'lineComparison':
-      exportLineComparison(pptx, s, d, theme, mode)
+      exportLineComparison(pptx, s, d, theme, mode, currencySettings)
       break
     case 'dualPie':
     default:
@@ -117,8 +120,14 @@ function exportSideCards(s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme)
   s.addText(`差額說明：${d.differenceNote || '（尚未填寫用途說明）'}`, { x: 0.6, y: SLIDE_H - 0.55, w: 12.1, h: 0.35, fontSize: 10, color: hex(theme.text), fontFace: PPT_FONT })
 }
 
-function exportLineComparison(pptx: pptxgen, s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme, mode: PptChartMode) {
+function exportLineComparison(pptx: pptxgen, s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme, mode: PptChartMode, currencySettings?: CurrencySettings) {
   const line = d.lineComparison ?? defaultLineComparisonData()
+
+  if ((line.growthAssets?.length ?? 0) > 0) {
+    exportGrowthAssetsChart(s, d, theme, currencySettings ?? defaultCurrencySettings())
+    return
+  }
+
   const points = resolveLineComparisonPoints(line, d.beforeItems, d.afterItems)
   const fmt = (v: number) => `${currencyLabel(line.currency, line.customCurrencyLabel)}${Math.round(v).toLocaleString('zh-Hant-TW')}`
 
@@ -160,4 +169,56 @@ function exportLineComparison(pptx: pptxgen, s: pptxgen.Slide, d: BeforeAfterDat
     s.addText('目標資產', { x: 10.2, y: 2.95, w: 2.3, h: 0.3, fontSize: 10, color: hex(theme.text), fontFace: PPT_FONT })
     s.addText(fmt(line.targetAmount), { x: 10.2, y: 3.25, w: 2.3, h: 0.5, fontSize: 16, bold: true, color: hex(line.targetColor), fontFace: PPT_FONT })
   }
+}
+
+/** 多項資產獨立試算模式：每項資產各自的幣別、投入方式、投入年數、報酬率、試算總年數都不同 */
+function exportGrowthAssetsChart(s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme, currencySettings: CurrencySettings) {
+  const line = d.lineComparison
+  const assets = line?.growthAssets ?? []
+  const series = computeAllGrowthAssetSeries(assets, currencySettings)
+  const maxYears = maxTotalYears(assets)
+  const fmt = (v: number) => formatMoney(v, currencySettings.primaryDisplayCurrency)
+
+  s.addText(line?.chartTitle || d.heading || '資產成長比較', { x: 0.6, y: 0.4, w: 10, h: 0.5, fontSize: 24, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })
+  if (line?.chartDescription) {
+    s.addText(line.chartDescription, { x: 0.6, y: 0.9, w: 10, h: 0.35, fontSize: 11, color: hex(theme.text), fontFace: PPT_FONT })
+  }
+  s.addShape('line', { x: 0.62, y: 1.3, w: 1.6, h: 0, line: { color: hex(theme.gold), width: 2 } })
+
+  if (series.length === 0) {
+    s.addText('尚未新增任何資產試算項目', { x: 1, y: 3, w: 8, h: 1, fontSize: 14, color: hex(theme.text), fontFace: PPT_FONT, align: 'center' })
+    return
+  }
+
+  const labels = Array.from({ length: maxYears + 1 }, (_, y) => (line?.timeUnit === 'year' ? `第${y}年` : `${y}`))
+  const png = renderLineChartPng(
+    labels,
+    series.map((sr) => ({
+      name: sr.asset.name,
+      color: sr.asset.color,
+      strokeWidth: 2.5,
+      // 較短試算年限的資產在超過自己年限後不再有資料（用 NaN 讓 canvas 折線圖略過該段，不延伸也不補值）
+      values: Array.from({ length: maxYears + 1 }, (_, y) => sr.points.find((p) => p.year === y)?.value ?? NaN)
+    })),
+    {
+      width: Math.round(9.2 * 96), height: Math.round(4.9 * 96),
+      referenceLine: line?.showTarget ? { value: line.targetAmount, color: line.targetColor, label: '目標' } : undefined,
+      yFormatter: fmt
+    }
+  )
+  addChartImage(s, png, { x: 0.6, y: 1.45, w: 9.2, h: 4.9 })
+
+  // 右側每項資產摘要卡片
+  let cy = 1.45
+  series.slice(0, 4).forEach((sr) => {
+    s.addShape('roundRect', { x: 10.0, y: cy, w: 2.7, h: 1.15, fill: { color: hex(theme.white) }, line: { color: hex(theme.cream), width: 1 }, rectRadius: 0.08 })
+    s.addText(sr.asset.name, { x: 10.15, y: cy + 0.1, w: 2.4, h: 0.28, fontSize: 9.5, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })
+    s.addText(fmt(sr.finalValue), { x: 10.15, y: cy + 0.4, w: 2.4, h: 0.35, fontSize: 14, bold: true, color: hex(sr.asset.color), fontFace: PPT_FONT })
+    s.addText(`增值 ${fmt(sr.estimatedGain)}`, { x: 10.15, y: cy + 0.78, w: 2.4, h: 0.28, fontSize: 8.5, color: hex(theme.positive), fontFace: PPT_FONT })
+    cy += 1.3
+  })
+
+  s.addText('以上為假設報酬率試算，不代表保證收益或實際商品利益。換算金額依設定匯率估算，實際金額可能因匯率變動而不同。', {
+    x: 0.6, y: SLIDE_H - 0.55, w: 9.2, h: 0.4, fontSize: 8, color: hex(theme.text), fontFace: PPT_FONT, italic: true
+  })
 }

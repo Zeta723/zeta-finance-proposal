@@ -46,6 +46,14 @@ export function useProposalEditor(initial: Proposal) {
     setProposal((p) => ({ ...p, client: { ...p.client, ...patch }, updatedAt: nowISO() }))
   }
 
+  const updateCurrencySettings = (settings: Proposal['currencySettings']) => {
+    setProposal((p) => ({ ...p, currencySettings: settings, updatedAt: nowISO() }))
+  }
+
+  const updateCategoryId = (categoryId: string | undefined) => {
+    setProposal((p) => ({ ...p, categoryId, updatedAt: nowISO() }))
+  }
+
   const addSlide = (type: SlideType, layoutId?: string) => {
     setProposal((p) => {
       const slide = createSlide(type, p.slides.length, layoutId)
@@ -124,6 +132,8 @@ export function useProposalEditor(initial: Proposal) {
     activeSlideId,
     setActiveSlideId,
     updateClient,
+    updateCurrencySettings,
+    updateCategoryId,
     addSlide,
     updateSlideData,
     updateSlideLayout,

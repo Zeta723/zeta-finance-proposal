@@ -5,6 +5,7 @@ import type {
   BeforeAfterData,
   ConclusionData,
   CoverData,
+  CurrencySettings,
   CustomSlideData,
   ProposalSlide,
   RecommendationData,
@@ -26,6 +27,8 @@ import { newId } from '../../services/idGenerator'
 interface Props {
   slide: ProposalSlide
   defaultTheme: string
+  currencySettings: CurrencySettings
+  onCurrencySettingsChange: (settings: CurrencySettings) => void
   onDataChange: (data: any) => void
   onLayoutChange: (layoutId: string) => void
   onThemeChange: (theme: string) => void
@@ -65,7 +68,7 @@ const PLAN_TYPES: RecommendationPlanType[] = [
   '房產活化', '國際資產配置', '美金高利增值帳戶', '資產防護網', '自訂方案'
 ]
 
-export function ContentEditPanel({ slide, defaultTheme, onDataChange, onLayoutChange, onThemeChange }: Props) {
+export function ContentEditPanel({ slide, defaultTheme, currencySettings, onCurrencySettingsChange, onDataChange, onLayoutChange, onThemeChange }: Props) {
   return (
     <div className="space-y-5">
       <div>
@@ -94,7 +97,15 @@ export function ContentEditPanel({ slide, defaultTheme, onDataChange, onLayoutCh
 
       {slide.type === 'cover' && <CoverForm data={slide.data as CoverData} onChange={onDataChange} />}
       {slide.type === 'assetAllocation' && <AssetAllocationForm data={slide.data as AssetAllocationData} onChange={onDataChange} />}
-      {slide.type === 'beforeAfter' && <BeforeAfterForm data={slide.data as BeforeAfterData} layoutId={slide.layoutId} onChange={onDataChange} />}
+      {slide.type === 'beforeAfter' && (
+        <BeforeAfterForm
+          data={slide.data as BeforeAfterData}
+          layoutId={slide.layoutId}
+          onChange={onDataChange}
+          currencySettings={currencySettings}
+          onCurrencySettingsChange={onCurrencySettingsChange}
+        />
+      )}
       {slide.type === 'recommendation' && <RecommendationForm data={slide.data as RecommendationData} onChange={onDataChange} />}
       {slide.type === 'conclusion' && <ConclusionForm data={slide.data as ConclusionData} onChange={onDataChange} />}
       {slide.type === 'custom' && <CustomForm data={slide.data as CustomSlideData} layoutId={slide.layoutId} onChange={onDataChange} />}
@@ -165,7 +176,19 @@ function AssetAllocationForm({ data, onChange }: { data: AssetAllocationData; on
   )
 }
 
-function BeforeAfterForm({ data, layoutId, onChange }: { data: BeforeAfterData; layoutId: string; onChange: (d: BeforeAfterData) => void }) {
+function BeforeAfterForm({
+  data,
+  layoutId,
+  onChange,
+  currencySettings,
+  onCurrencySettingsChange
+}: {
+  data: BeforeAfterData
+  layoutId: string
+  onChange: (d: BeforeAfterData) => void
+  currencySettings: CurrencySettings
+  onCurrencySettingsChange: (s: CurrencySettings) => void
+}) {
   const set = (patch: Partial<BeforeAfterData>) => onChange({ ...data, ...patch })
   return (
     <div className="space-y-3">
@@ -198,6 +221,8 @@ function BeforeAfterForm({ data, layoutId, onChange }: { data: BeforeAfterData; 
         <LineComparisonEditor
           data={data.lineComparison ?? defaultLineComparisonData()}
           onChange={(lineComparison) => set({ lineComparison })}
+          currencySettings={currencySettings}
+          onCurrencySettingsChange={onCurrencySettingsChange}
         />
       )}
     </div>

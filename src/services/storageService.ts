@@ -96,7 +96,8 @@ class LocalStorageProposalService implements IProposalStorage {
         slideCount: p.slides.length,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
-        thumbnail: p.thumbnail
+        thumbnail: p.thumbnail,
+        categoryId: p.categoryId
       })
     }
     return summaries.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))

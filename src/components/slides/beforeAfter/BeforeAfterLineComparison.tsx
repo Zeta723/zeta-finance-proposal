@@ -1,24 +1,32 @@
 import React from 'react'
 import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useIsExportRender } from '../../../export/ExportRenderContext'
-import type { BeforeAfterData, ProposalSlide } from '../../../types'
+import type { BeforeAfterData, CurrencySettings, ProposalSlide } from '../../../types'
 import type { ZetaTheme } from '../../../styles/theme'
 import { currencyLabel } from '../../../export/pptxHelpers'
 import { resolveLineComparisonPoints, finalGap } from '../../../services/lineComparisonCalc'
 import { defaultLineComparisonData } from '../../../data/slideDefaults'
+import { BeforeAfterGrowthAssets } from './BeforeAfterGrowthAssets'
 
 interface Props {
   slide: ProposalSlide<BeforeAfterData>
   theme: ZetaTheme
+  currencySettings?: CurrencySettings
 }
 
 /**
  * 模板C｜資產成長折線比較圖：真正的 XY 座標折線圖（不是圓餅圖）。
- * X軸＝時間，Y軸＝資產金額，兩條線比較調整前/調整後成長曲線，可選加入目標水平參考線。
+ * 若已設定「多項資產獨立試算」（growthAssets），改由 BeforeAfterGrowthAssets 渲染；
+ * 否則維持舊版「調整前／調整後」雙線比較，向下相容既有提案。
  */
-export function BeforeAfterLineComparison({ slide, theme }: Props) {
+export function BeforeAfterLineComparison({ slide, theme, currencySettings }: Props) {
   const d = slide.data
   const line = d.lineComparison ?? defaultLineComparisonData()
+
+  if ((line.growthAssets?.length ?? 0) > 0) {
+    return <BeforeAfterGrowthAssets slide={slide} theme={theme} currencySettings={currencySettings} />
+  }
+
   const points = resolveLineComparisonPoints(line, d.beforeItems, d.afterItems)
   const fmt = (v: number) => `${currencyLabel(line.currency, line.customCurrencyLabel)}${Math.round(v).toLocaleString('zh-Hant-TW')}`
   const gap = finalGap(points)

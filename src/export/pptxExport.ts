@@ -84,7 +84,7 @@ function renderSlidesInto(pptx: PptxGenJS, proposal: Proposal, mode: PptChartMod
         exportAssetAllocationSlide(pptx, slide as any, theme, mode)
         break
       case 'beforeAfter':
-        exportBeforeAfterSlide(pptx, slide as any, theme, mode)
+        exportBeforeAfterSlide(pptx, slide as any, theme, mode, proposal.currencySettings)
         break
       case 'recommendation':
         exportRecommendationSlide(pptx, slide as any, theme)

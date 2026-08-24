@@ -118,6 +118,13 @@ export interface LineComparisonData {
   showDataLabels: boolean
   currency: CurrencyCode
   customCurrencyLabel?: string
+  /**
+   * 新版：每一項資產獨立試算（分紅保單／ETF／定存…各自的幣別、投入方式、
+   * 投入年數、報酬率、試算總年數都不共用）。存在且非空陣列時，圖表改用
+   * 這裡的多資產比較模式渲染；為空或未設定時，維持舊版單一調整前/調整後
+   * 兩線比較（回頭相容既有提案）。
+   */
+  growthAssets?: GrowthAsset[]
 }
 
 // ---------- 建議書 / 方案 ----------
@@ -316,6 +323,77 @@ export interface Proposal {
   updatedAt: string
   /** 縮圖（第一頁截圖／示意色塊），非必要 */
   thumbnail?: string
+  /** 所屬分類；未設定或分類已被刪除時視為「未分類」 */
+  categoryId?: string
+  /** 全域幣別顯示設定（試算與金額換算共用） */
+  currencySettings?: CurrencySettings
+}
+
+/** 首頁的專案分類（例如：初次諮詢／製作中／已完成），使用者自訂名稱 */
+export interface ProposalCategory {
+  id: string
+  name: string
+  createdAt: string
+}
+
+export interface CurrencySettings {
+  /** 圖表與摘要統一換算後顯示用的主要幣別 */
+  primaryDisplayCurrency: CurrencyCode
+  /** 美元兌台幣匯率（1 美元 = N 台幣），手動設定 */
+  usdToTwdRate: number
+  /** 匯率最後更新時間（僅手動輸入時也會記錄，供使用者確認） */
+  rateUpdatedAt?: string
+}
+
+export function defaultCurrencySettings(): CurrencySettings {
+  return { primaryDisplayCurrency: 'TWD', usdToTwdRate: 32, rateUpdatedAt: undefined }
+}
+
+export type ContributionMode = 'lumpSum' | 'annual' | 'monthly'
+
+/**
+ * 資產成長試算項目：每一項資產（例如分紅保單、ETF、定存）都有自己獨立的
+ * 幣別、投入方式、投入金額、投入年數與報酬率 —— 彼此不共用同一組假設。
+ * 「投入年數」（contributionYears）與「試算總年數」（totalYears）是分開的兩個設定：
+ * 投入年數過後不再新增投入，但既有本金仍依報酬率持續複利成長到試算總年數為止。
+ */
+export interface GrowthAsset {
+  id: string
+  name: string
+  assetKind?: string
+  currency: CurrencyCode
+  customCurrencyLabel?: string
+  contributionMode: ContributionMode
+  /** 單筆投入時的起始金額（contributionMode === 'lumpSum' 時使用） */
+  initialAmount: number
+  /** 每年或每月投入金額（contributionMode === 'annual' | 'monthly' 時使用） */
+  periodicAmount: number
+  /** 持續投入幾年後停止（僅 annual/monthly 適用；lumpSum 忽略此欄位） */
+  contributionYears: number
+  annualReturnRate: number
+  /** 試算總年數：圖表與最終試算會算到這一年，停止投入後本金仍持續成長到這裡 */
+  totalYears: number
+  /** 從第幾年開始投入（0 = 立刻開始），用於錯開不同資產的起始時間 */
+  startYearOffset: number
+  visible: boolean
+  color: string
+}
+
+export function defaultGrowthAsset(name: string, color: string): GrowthAsset {
+  return {
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+    name,
+    currency: 'TWD',
+    contributionMode: 'annual',
+    initialAmount: 0,
+    periodicAmount: 0,
+    contributionYears: 10,
+    annualReturnRate: 5,
+    totalYears: 20,
+    startYearOffset: 0,
+    visible: true,
+    color
+  }
 }
 
 export interface ProposalSummary {
@@ -327,6 +405,7 @@ export interface ProposalSummary {
   createdAt: string
   updatedAt: string
   thumbnail?: string
+  categoryId?: string
 }
 
 /** 匯出模式：可編輯PowerPoint／Keynote相容PowerPoint／PDF。詳見 export/exportModes.ts */

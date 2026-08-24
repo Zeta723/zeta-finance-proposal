@@ -15,6 +15,7 @@ import { exportProposalToPdf } from '../../export/pdfExport'
 import { proposalStorage } from '../../services/storageService'
 import { Menu, PanelRight, X } from 'lucide-react'
 import { createSlide } from '../../data/slideDefaults'
+import { defaultCurrencySettings } from '../../types'
 import { ExportProgressModal } from './ExportProgressModal'
 
 interface Props {
@@ -116,6 +117,7 @@ export function EditorPage({ initialProposal, onBack }: Props) {
             slides={editor.proposal.slides}
             activeSlideId={editor.activeSlideId}
             defaultTheme={editor.proposal.themeSettings.defaultTheme}
+            currencySettings={editor.proposal.currencySettings}
             onSelect={editor.setActiveSlideId}
             onOpenFullPreview={() => setFullPreviewOpen(true)}
             onUpdateSlideData={editor.updateSlideData}
@@ -126,6 +128,8 @@ export function EditorPage({ initialProposal, onBack }: Props) {
             <ContentEditPanel
               slide={editor.activeSlide}
               defaultTheme={editor.proposal.themeSettings.defaultTheme}
+              currencySettings={editor.proposal.currencySettings ?? defaultCurrencySettings()}
+              onCurrencySettingsChange={editor.updateCurrencySettings}
               onDataChange={(data) => editor.updateSlideData(editor.activeSlide!.id, data)}
               onLayoutChange={(layoutId) => editor.updateSlideLayout(editor.activeSlide!.id, layoutId)}
               onThemeChange={(theme) => editor.updateSlideTheme(editor.activeSlide!.id, theme)}
@@ -157,6 +161,7 @@ export function EditorPage({ initialProposal, onBack }: Props) {
               slides={editor.proposal.slides}
               activeSlideId={editor.activeSlideId}
               defaultTheme={editor.proposal.themeSettings.defaultTheme}
+              currencySettings={editor.proposal.currencySettings}
               onSelect={editor.setActiveSlideId}
               onOpenFullPreview={() => setFullPreviewOpen(true)}
               onUpdateSlideData={editor.updateSlideData}
@@ -168,6 +173,8 @@ export function EditorPage({ initialProposal, onBack }: Props) {
                 <ContentEditPanel
                   slide={editor.activeSlide}
                   defaultTheme={editor.proposal.themeSettings.defaultTheme}
+                  currencySettings={editor.proposal.currencySettings ?? defaultCurrencySettings()}
+                  onCurrencySettingsChange={editor.updateCurrencySettings}
                   onDataChange={(data) => editor.updateSlideData(editor.activeSlide!.id, data)}
                   onLayoutChange={(layoutId) => editor.updateSlideLayout(editor.activeSlide!.id, layoutId)}
                   onThemeChange={(theme) => editor.updateSlideTheme(editor.activeSlide!.id, theme)}
@@ -205,6 +212,7 @@ export function EditorPage({ initialProposal, onBack }: Props) {
         open={fullPreviewOpen}
         slides={editor.proposal.slides}
         defaultTheme={editor.proposal.themeSettings.defaultTheme}
+        currencySettings={editor.proposal.currencySettings}
         onClose={() => setFullPreviewOpen(false)}
       />
 

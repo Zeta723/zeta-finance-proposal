@@ -1,12 +1,18 @@
 import React from 'react'
 import { Plus, Trash2 } from 'lucide-react'
-import type { LineComparisonData, LineComparisonPoint } from '../../types'
+import type { CurrencySettings, LineComparisonData, LineComparisonPoint } from '../../types'
 import { newId } from '../../services/idGenerator'
 import { BRAND_COLOR_SWATCHES } from '../richtext/RichTextEditor'
+import { GrowthAssetEditor } from './GrowthAssetEditor'
+import { CurrencySettingsPanel } from './CurrencySettingsPanel'
+import { defaultGrowthAsset } from '../../types'
+import { CHART_PALETTE } from '../../styles/theme'
 
 interface Props {
   data: LineComparisonData
   onChange: (data: LineComparisonData) => void
+  currencySettings: CurrencySettings
+  onCurrencySettingsChange: (settings: CurrencySettings) => void
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -25,17 +31,37 @@ function Txt(props: React.InputHTMLAttributes<HTMLInputElement>) {
 }
 
 /** 折線比較圖資料編輯器：自動試算模式的參數輸入，或手動輸入模式的時間點清單 */
-export function LineComparisonEditor({ data, onChange }: Props) {
+export function LineComparisonEditor({ data, onChange, currencySettings, onCurrencySettingsChange }: Props) {
   const set = (patch: Partial<LineComparisonData>) => onChange({ ...data, ...patch })
+  const usingGrowthAssets = (data.growthAssets?.length ?? 0) > 0
 
   const updatePoint = (id: string, patch: Partial<LineComparisonPoint>) =>
     set({ points: data.points.map((p) => (p.id === id ? { ...p, ...patch } : p)) })
   const removePoint = (id: string) => set({ points: data.points.filter((p) => p.id !== id) })
   const addPoint = () => set({ points: [...data.points, { id: newId(), label: `時間點 ${data.points.length + 1}`, beforeAmount: 0, afterAmount: 0 }] })
 
+  const switchToGrowthAssets = () => {
+    set({
+      growthAssets: [
+        { ...defaultGrowthAsset('資產項目 1', CHART_PALETTE[0]), id: newId() },
+        { ...defaultGrowthAsset('資產項目 2', CHART_PALETTE[1]), id: newId() }
+      ]
+    })
+  }
+  const switchToBeforeAfter = () => set({ growthAssets: [] })
+
   return (
     <div className="space-y-3 border-t border-zeta-bg pt-3 mt-1">
       <div className="text-xs font-semibold text-zeta-navy">折線比較圖設定</div>
+
+      <div className="flex gap-4 text-xs">
+        <label className="flex items-center gap-1.5">
+          <input type="radio" checked={!usingGrowthAssets} onChange={switchToBeforeAfter} /> 調整前／調整後（雙線比較）
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input type="radio" checked={usingGrowthAssets} onChange={switchToGrowthAssets} /> 多項資產獨立試算
+        </label>
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
         <Field label="圖表標題"><Txt value={data.chartTitle} onChange={(e) => set({ chartTitle: e.target.value })} /></Field>
@@ -52,42 +78,56 @@ export function LineComparisonEditor({ data, onChange }: Props) {
         <Field label="自訂時間名稱"><Txt value={data.customUnitLabel ?? ''} onChange={(e) => set({ customUnitLabel: e.target.value })} placeholder="例如：期" /></Field>
       )}
 
-      <div className="flex gap-4 text-xs">
-        <label className="flex items-center gap-1.5">
-          <input type="radio" checked={data.mode === 'auto'} onChange={() => set({ mode: 'auto' })} /> 自動試算
-        </label>
-        <label className="flex items-center gap-1.5">
-          <input type="radio" checked={data.mode === 'manual'} onChange={() => set({ mode: 'manual' })} /> 手動輸入
-        </label>
-      </div>
-
-      {data.mode === 'auto' ? (
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="起始資產（僅在上方尚未輸入任何資產項目時使用）"><Num value={data.startAmount} onChange={(e) => set({ startAmount: Number(e.target.value) })} /></Field>
-          <Field label="規劃期數"><Num value={data.periods} onChange={(e) => set({ periods: Number(e.target.value) })} /></Field>
-          <Field label="調整前預設報酬率(%)"><Num value={data.beforeAnnualReturnRate} onChange={(e) => set({ beforeAnnualReturnRate: Number(e.target.value) })} /></Field>
-          <Field label="調整後預設報酬率(%)"><Num value={data.afterAnnualReturnRate} onChange={(e) => set({ afterAnnualReturnRate: Number(e.target.value) })} /></Field>
-          <Field label="每期投入金額"><Num value={data.contributionAmount} onChange={(e) => set({ contributionAmount: Number(e.target.value) })} /></Field>
-          <Field label="複利計算">
-            <label className="flex items-center gap-1.5 text-xs mt-1.5">
-              <input type="checkbox" checked={data.useCompound} onChange={(e) => set({ useCompound: e.target.checked })} /> 使用複利
-            </label>
-          </Field>
-        </div>
+      {usingGrowthAssets ? (
+        <>
+          <CurrencySettingsPanel settings={currencySettings} onChange={onCurrencySettingsChange} />
+          <GrowthAssetEditor assets={data.growthAssets ?? []} onChange={(growthAssets) => set({ growthAssets })} currencySettings={currencySettings} />
+        </>
       ) : (
-        <div className="space-y-1.5">
-          {data.points.map((p) => (
-            <div key={p.id} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
-              <Txt value={p.label} onChange={(e) => updatePoint(p.id, { label: e.target.value })} placeholder="時間名稱" />
-              <Num value={p.beforeAmount} onChange={(e) => updatePoint(p.id, { beforeAmount: Number(e.target.value) })} placeholder="調整前" />
-              <Num value={p.afterAmount} onChange={(e) => updatePoint(p.id, { afterAmount: Number(e.target.value) })} placeholder="調整後" />
-              <button onClick={() => removePoint(p.id)} className="text-zeta-danger/70 hover:text-zeta-danger"><Trash2 size={14} /></button>
+        <>
+          <div className="flex gap-4 text-xs">
+            <label className="flex items-center gap-1.5">
+              <input type="radio" checked={data.mode === 'auto'} onChange={() => set({ mode: 'auto' })} /> 自動試算
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="radio" checked={data.mode === 'manual'} onChange={() => set({ mode: 'manual' })} /> 手動輸入
+            </label>
+          </div>
+
+          {data.mode === 'auto' ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="起始資產（僅在上方尚未輸入任何資產項目時使用）"><Num value={data.startAmount} onChange={(e) => set({ startAmount: Number(e.target.value) })} /></Field>
+              <Field label="規劃期數"><Num value={data.periods} onChange={(e) => set({ periods: Number(e.target.value) })} /></Field>
+              <Field label="調整前預設報酬率(%)"><Num value={data.beforeAnnualReturnRate} onChange={(e) => set({ beforeAnnualReturnRate: Number(e.target.value) })} /></Field>
+              <Field label="調整後預設報酬率(%)"><Num value={data.afterAnnualReturnRate} onChange={(e) => set({ afterAnnualReturnRate: Number(e.target.value) })} /></Field>
+              <Field label="每期投入金額"><Num value={data.contributionAmount} onChange={(e) => set({ contributionAmount: Number(e.target.value) })} /></Field>
+              <Field label="複利計算">
+                <label className="flex items-center gap-1.5 text-xs mt-1.5">
+                  <input type="checkbox" checked={data.useCompound} onChange={(e) => set({ useCompound: e.target.checked })} /> 使用複利
+                </label>
+              </Field>
             </div>
-          ))}
-          <button onClick={addPoint} className="w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed border-zeta-gold/60 text-zeta-navy hover:bg-zeta-gold/10">
-            <Plus size={13} /> 新增時間點
-          </button>
-        </div>
+          ) : (
+            <div className="space-y-1.5">
+              {data.points.map((p) => (
+                <div key={p.id} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
+                  <Txt value={p.label} onChange={(e) => updatePoint(p.id, { label: e.target.value })} placeholder="時間名稱" />
+                  <Num value={p.beforeAmount} onChange={(e) => updatePoint(p.id, { beforeAmount: Number(e.target.value) })} placeholder="調整前" />
+                  <Num value={p.afterAmount} onChange={(e) => updatePoint(p.id, { afterAmount: Number(e.target.value) })} placeholder="調整後" />
+                  <button onClick={() => removePoint(p.id)} className="text-zeta-danger/70 hover:text-zeta-danger"><Trash2 size={14} /></button>
+                </div>
+              ))}
+              <button onClick={addPoint} className="w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-lg border border-dashed border-zeta-gold/60 text-zeta-navy hover:bg-zeta-gold/10">
+                <Plus size={13} /> 新增時間點
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="調整前線條名稱"><Txt value={data.beforeName} onChange={(e) => set({ beforeName: e.target.value })} /></Field>
+            <Field label="調整後線條名稱"><Txt value={data.afterName} onChange={(e) => set({ afterName: e.target.value })} /></Field>
+          </div>
+        </>
       )}
 
       <label className="flex items-center gap-1.5 text-xs">
@@ -96,11 +136,6 @@ export function LineComparisonEditor({ data, onChange }: Props) {
       {data.showTarget && (
         <Field label="目標資產金額"><Num value={data.targetAmount} onChange={(e) => set({ targetAmount: Number(e.target.value) })} /></Field>
       )}
-
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="調整前線條名稱"><Txt value={data.beforeName} onChange={(e) => set({ beforeName: e.target.value })} /></Field>
-        <Field label="調整後線條名稱"><Txt value={data.afterName} onChange={(e) => set({ afterName: e.target.value })} /></Field>
-      </div>
 
       <div className="grid grid-cols-3 gap-2">
         {(['beforeColor', 'afterColor', 'targetColor'] as const).map((key) => (

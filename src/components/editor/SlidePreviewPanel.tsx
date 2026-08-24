@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { ChevronLeft, ChevronRight, Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
-import type { CustomSlideData, ProposalSlide } from '../../types'
+import type { CurrencySettings, CustomSlideData, ProposalSlide } from '../../types'
 import { SlideRenderer } from '../preview/SlideRenderer'
 import { ImageBlockEditOverlay } from './ImageBlockEditOverlay'
 
@@ -8,12 +8,13 @@ interface Props {
   slides: ProposalSlide[]
   activeSlideId: string | null
   defaultTheme: string
+  currencySettings?: CurrencySettings
   onSelect: (id: string) => void
   onOpenFullPreview: () => void
   onUpdateSlideData?: (slideId: string, data: any) => void
 }
 
-export function SlidePreviewPanel({ slides, activeSlideId, defaultTheme, onSelect, onOpenFullPreview, onUpdateSlideData }: Props) {
+export function SlidePreviewPanel({ slides, activeSlideId, defaultTheme, currencySettings, onSelect, onOpenFullPreview, onUpdateSlideData }: Props) {
   const [zoom, setZoom] = useState(1)
   const ordered = [...slides].sort((a, b) => a.order - b.order)
   const idx = ordered.findIndex((s) => s.id === activeSlideId)
@@ -53,7 +54,7 @@ export function SlidePreviewPanel({ slides, activeSlideId, defaultTheme, onSelec
             className="zeta-slide-canvas relative bg-white shadow-soft rounded-md overflow-hidden shrink-0"
             style={{ width: `${800 * zoom}px` }}
           >
-            <SlideRenderer slide={active} defaultTheme={defaultTheme as any} />
+            <SlideRenderer slide={active} defaultTheme={defaultTheme as any} currencySettings={currencySettings} />
             {editableImageBlock && onUpdateSlideData && (
               <ImageBlockEditOverlay
                 block={editableImageBlock}
