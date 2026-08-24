@@ -149,6 +149,22 @@ export function pxToIn(px: number, pxPerIn = 96): number {
   return px / pxPerIn
 }
 
+/** 依 ImageAsset 的 scale／positionX／positionY 換算 PPT 圖片實際要用的座標與尺寸，
+ *  盡量與網頁預覽的 CSS transform: scale() + transformOrigin 效果一致（以指定錨點為準縮放）。 */
+export function applyImageScale(
+  box: { x: number; y: number; w: number; h: number },
+  asset: { scale?: number; positionX?: 'left' | 'center' | 'right'; positionY?: 'top' | 'center' | 'bottom' } | undefined
+): { x: number; y: number; w: number; h: number } {
+  const scale = (asset?.scale ?? 100) / 100
+  const w = box.w * scale
+  const h = box.h * scale
+  const px = asset?.positionX ?? 'center'
+  const py = asset?.positionY ?? 'center'
+  const x = px === 'left' ? box.x : px === 'right' ? box.x + (box.w - w) : box.x + (box.w - w) / 2
+  const y = py === 'top' ? box.y : py === 'bottom' ? box.y + (box.h - h) : box.y + (box.h - h) / 2
+  return { x, y, w, h }
+}
+
 /**
  * 在投影片上加入一張以 canvas 產生的圖表 PNG（dataUrl），並確保：
  * - 使用固定尺寸，不做超出投影片邊界的定位

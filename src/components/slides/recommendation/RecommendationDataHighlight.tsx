@@ -4,6 +4,7 @@ import type { ZetaTheme } from '../../../styles/theme'
 import { RichTextView } from '../../richtext/RichTextView'
 import { currencyLabel } from '../../../export/pptxHelpers'
 import { isRecFieldVisible } from '../../../data/recommendationFieldVisibility'
+import { imageTransformStyle } from '../../../services/imageTransform'
 
 interface Props {
   slide: ProposalSlide<RecommendationData>
@@ -29,7 +30,11 @@ export function RecommendationDataHighlight({ slide, theme }: Props) {
       <div className="flex items-start justify-between mb-1">
         <h2 className="text-xl font-bold" style={{ color: theme.navy }}>{d.heading || d.planName || '建議方案'}</h2>
         <div className="flex items-center gap-2">
-          {hasImage && <img src={d.image!.dataUrl} className="w-9 h-9 rounded-lg object-cover" alt="" />}
+          {hasImage && (
+            <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0">
+              <img src={d.image!.dataUrl} className="w-full h-full object-cover" style={imageTransformStyle(d.image)} alt="" />
+            </div>
+          )}
           <span className="text-xs font-semibold px-3 py-1 rounded-full" style={{ backgroundColor: theme.gold, color: theme.navy }}>{d.planType}</span>
         </div>
       </div>

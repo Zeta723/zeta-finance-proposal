@@ -1,7 +1,7 @@
 import type pptxgen from 'pptxgenjs'
 import type { CoverData, ProposalSlide } from '../../types'
 import type { ZetaTheme } from '../../styles/theme'
-import { PPT_FONT, SLIDE_W, SLIDE_H, hex, richTextToPptxRuns, safeText } from '../pptxHelpers'
+import { PPT_FONT, SLIDE_W, SLIDE_H, hex, richTextToPptxRuns, safeText, applyImageScale } from '../pptxHelpers'
 
 export function exportCoverSlide(pptx: pptxgen, slide: ProposalSlide<CoverData>, theme: ZetaTheme) {
   const s = pptx.addSlide()
@@ -14,7 +14,8 @@ export function exportCoverSlide(pptx: pptxgen, slide: ProposalSlide<CoverData>,
   s.background = { color: hex(bg) }
 
   if (d.backgroundImage?.dataUrl) {
-    s.addImage({ data: d.backgroundImage.dataUrl, x: 0, y: 0, w: SLIDE_W, h: SLIDE_H, transparency: layout === 'classic' ? 55 : 75 })
+    const box = applyImageScale({ x: 0, y: 0, w: SLIDE_W, h: SLIDE_H }, d.backgroundImage)
+    s.addImage({ data: d.backgroundImage.dataUrl, x: box.x, y: box.y, w: box.w, h: box.h, transparency: layout === 'classic' ? 55 : 75 })
   }
 
   // 品牌金線裝飾
@@ -53,9 +54,11 @@ export function exportCoverSlide(pptx: pptxgen, slide: ProposalSlide<CoverData>,
   )
 
   if (d.logo?.dataUrl) {
-    s.addImage({ data: d.logo.dataUrl, x: SLIDE_W - 2.2, y: 0.6, w: 1.2, h: 1.2, sizing: { type: 'contain', w: 1.2, h: 1.2 } })
+    const box = applyImageScale({ x: SLIDE_W - 2.2, y: 0.6, w: 1.2, h: 1.2 }, d.logo)
+    s.addImage({ data: d.logo.dataUrl, x: box.x, y: box.y, w: box.w, h: box.h, sizing: { type: 'contain', w: box.w, h: box.h } })
   }
   if (d.coverPhoto?.dataUrl) {
-    s.addImage({ data: d.coverPhoto.dataUrl, x: SLIDE_W - 4.4, y: 4.6, w: 3.6, h: 2.5, sizing: { type: 'cover', w: 3.6, h: 2.5 }, rounding: true })
+    const box = applyImageScale({ x: SLIDE_W - 4.4, y: 4.6, w: 3.6, h: 2.5 }, d.coverPhoto)
+    s.addImage({ data: d.coverPhoto.dataUrl, x: box.x, y: box.y, w: box.w, h: box.h, sizing: { type: 'cover', w: box.w, h: box.h }, rounding: true })
   }
 }

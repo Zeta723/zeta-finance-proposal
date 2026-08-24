@@ -2,6 +2,7 @@ import React from 'react'
 import type { CoverData, ProposalSlide } from '../../../types'
 import type { ZetaTheme } from '../../../styles/theme'
 import { RichTextView } from '../../richtext/RichTextView'
+import { imageTransformStyle, imageObjectPosition } from '../../../services/imageTransform'
 
 interface Props {
   slide: ProposalSlide<CoverData>
@@ -21,7 +22,18 @@ export function CoverSlide({ slide, theme }: Props) {
     <div className="w-full h-full relative flex flex-col justify-between p-[5%]" style={{ backgroundColor: bg }}>
       <div className="absolute left-0 top-0 bottom-0 w-2" style={{ backgroundColor: theme.gold }} />
       {d.backgroundImage?.dataUrl && (
-        <img src={d.backgroundImage.dataUrl} className="absolute inset-0 w-full h-full object-cover opacity-20" alt="" />
+        <div className="absolute inset-0 overflow-hidden">
+          <img
+            src={d.backgroundImage.dataUrl}
+            className="w-full h-full opacity-20"
+            style={{
+              objectFit: d.backgroundImage.fit === 'contain' ? 'contain' : 'cover',
+              objectPosition: imageObjectPosition(d.backgroundImage),
+              ...imageTransformStyle(d.backgroundImage)
+            }}
+            alt=""
+          />
+        </div>
       )}
       <div className="relative z-10">
         <div className="text-xs tracking-[0.2em] font-bold mb-2" style={{ color: theme.gold }}>
@@ -40,10 +52,16 @@ export function CoverSlide({ slide, theme }: Props) {
           <div className="text-xs text-zeta-text/70">財務顧問：{d.advisorName || 'Zeta'}｜{d.brandName}</div>
         </div>
         {d.coverPhoto?.dataUrl && (
-          <img src={d.coverPhoto.dataUrl} className="w-40 h-28 object-cover rounded-card shadow-soft" alt="" />
+          <div className="w-40 h-28 overflow-hidden rounded-card shadow-soft">
+            <img src={d.coverPhoto.dataUrl} className="w-full h-full object-cover" style={imageTransformStyle(d.coverPhoto)} alt="" />
+          </div>
         )}
       </div>
-      {d.logo?.dataUrl && <img src={d.logo.dataUrl} className="absolute top-[5%] right-[5%] w-16 h-16 object-contain" alt="logo" />}
+      {d.logo?.dataUrl && (
+        <div className="absolute top-[5%] right-[5%] w-16 h-16 overflow-visible">
+          <img src={d.logo.dataUrl} className="w-full h-full object-contain" style={imageTransformStyle(d.logo)} alt="logo" />
+        </div>
+      )}
     </div>
   )
 }

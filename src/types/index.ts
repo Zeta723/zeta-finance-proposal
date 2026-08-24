@@ -10,6 +10,20 @@ export interface ImageAsset {
   shape?: 'rounded' | 'circle' | 'square'
   /** 原始檔案大小（bytes），用來判斷是否需要壓縮提示 */
   sizeBytes?: number
+  /**
+   * 縮放比例（%），100 為原始顯示大小。每一個圖片欄位（Logo／封面照片／
+   * 背景圖片／其他頁面圖片）各自獨立保存在自己的 ImageAsset 物件裡，
+   * 調整其中一張不會影響其他張。未設定時視為 100%（向下相容舊資料）。
+   */
+  scale?: number
+  /** 水平位置錨點；未設定時視為置中 */
+  positionX?: 'left' | 'center' | 'right'
+  /** 垂直位置錨點；未設定時視為置中 */
+  positionY?: 'top' | 'center' | 'bottom'
+}
+
+export function defaultImageScale(): number {
+  return 100
 }
 
 export type SlideType =
@@ -45,8 +59,19 @@ export interface AssetItem {
   color: string
   note?: string
   visible: boolean
-  /** 該項目自己的預估年化報酬率（%），用於「資產成長折線比較圖」逐項試算；未設定時使用該側的預設報酬率 */
+  /** 該項目自己的預估年化報酬率（%），用於資產成長試算；未設定時使用該側的預設報酬率 */
   annualReturnRate?: number
+  /** 「目前資產金額」（amount）的幣別；未設定時視為新台幣 TWD（向下相容舊資料） */
+  currency?: CurrencyCode
+  customCurrencyLabel?: string
+  /** 是否持續投入；未設定時視為單筆投入（不持續投入），向下相容舊資料 */
+  contributionMode?: ContributionMode
+  /** 每月或每年投入金額（contributionMode 為 monthly/annual 時使用） */
+  periodicAmount?: number
+  /** 持續投入金額的幣別；未設定時預設同 currency */
+  periodicCurrency?: CurrencyCode
+  /** 投入年限：持續投入幾年後停止（僅 monthly/annual 適用） */
+  contributionYears?: number
 }
 
 export type CurrencyCode = 'TWD' | 'USD' | 'CUSTOM'

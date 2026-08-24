@@ -4,6 +4,7 @@ import type { ZetaTheme } from '../../../styles/theme'
 import { RichTextView } from '../../richtext/RichTextView'
 import { currencyLabel } from '../../../export/pptxHelpers'
 import { isRecFieldVisible } from '../../../data/recommendationFieldVisibility'
+import { imageTransformStyle } from '../../../services/imageTransform'
 
 interface Props {
   slide: ProposalSlide<RecommendationData>
@@ -34,7 +35,11 @@ export function RecommendationAdvisorCard({ slide, theme }: Props) {
       {/* 上方橫幅 */}
       <div className="px-[4%] py-4 flex items-center justify-between" style={{ backgroundColor: theme.navy }}>
         <div className="flex items-center gap-3">
-          {hasImage && <img src={d.image!.dataUrl} className="w-12 h-12 rounded-lg object-cover shrink-0" alt="" />}
+          {hasImage && (
+            <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0">
+              <img src={d.image!.dataUrl} className="w-full h-full object-cover" style={imageTransformStyle(d.image)} alt="" />
+            </div>
+          )}
           <div>
             <div className="text-[10px]" style={{ color: theme.gold }}>{d.planType}</div>
             <h2 className="text-xl font-bold text-white">{d.heading || d.planName || '建議方案'}</h2>

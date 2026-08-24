@@ -2,6 +2,7 @@ import React from 'react'
 import type { ConclusionData, ProposalSlide } from '../../../types'
 import type { ZetaTheme } from '../../../styles/theme'
 import { RichTextView } from '../../richtext/RichTextView'
+import { imageTransformStyle } from '../../../services/imageTransform'
 
 interface Props {
   slide: ProposalSlide<ConclusionData>
@@ -41,7 +42,9 @@ export function ConclusionWarmClosing({ slide, theme }: Props) {
 
         <div className="w-56 shrink-0 bg-white rounded-card shadow-soft p-4 flex flex-col items-center text-center">
           {d.advisorPhoto?.dataUrl ? (
-            <img src={d.advisorPhoto.dataUrl} className="w-16 h-16 rounded-full object-cover mb-2" alt="advisor" />
+            <div className="w-16 h-16 rounded-full overflow-hidden mb-2">
+              <img src={d.advisorPhoto.dataUrl} className="w-full h-full object-cover" style={imageTransformStyle(d.advisorPhoto)} alt="advisor" />
+            </div>
           ) : (
             <div className="w-16 h-16 rounded-full mb-2" style={{ backgroundColor: theme.cream }} />
           )}
@@ -51,7 +54,11 @@ export function ConclusionWarmClosing({ slide, theme }: Props) {
             {d.instagram && <div>{d.instagram}</div>}
             {d.website && <div>{d.website}</div>}
           </div>
-          {d.qrCode?.dataUrl && <img src={d.qrCode.dataUrl} className="w-16 h-16 mt-2" alt="qr" />}
+          {d.qrCode?.dataUrl && (
+            <div className="w-16 h-16 mt-2 overflow-hidden">
+              <img src={d.qrCode.dataUrl} className="w-full h-full object-contain" style={imageTransformStyle(d.qrCode)} alt="qr" />
+            </div>
+          )}
           {d.nextMeetingDate && (
             <div className="mt-3 text-[10px] px-2 py-1 rounded-full" style={{ backgroundColor: theme.gold, color: theme.navy }}>
               下次會談：{d.nextMeetingDate}

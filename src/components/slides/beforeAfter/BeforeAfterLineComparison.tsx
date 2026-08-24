@@ -3,9 +3,10 @@ import { CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContai
 import { useIsExportRender } from '../../../export/ExportRenderContext'
 import type { BeforeAfterData, CurrencySettings, ProposalSlide } from '../../../types'
 import type { ZetaTheme } from '../../../styles/theme'
-import { currencyLabel } from '../../../export/pptxHelpers'
+import { formatMoney } from '../../../services/currencyService'
 import { resolveLineComparisonPoints, finalGap } from '../../../services/lineComparisonCalc'
 import { defaultLineComparisonData } from '../../../data/slideDefaults'
+import { defaultCurrencySettings } from '../../../types'
 import { BeforeAfterGrowthAssets } from './BeforeAfterGrowthAssets'
 
 interface Props {
@@ -17,18 +18,20 @@ interface Props {
 /**
  * 模板C｜資產成長折線比較圖：真正的 XY 座標折線圖（不是圓餅圖）。
  * 若已設定「多項資產獨立試算」（growthAssets），改由 BeforeAfterGrowthAssets 渲染；
- * 否則維持舊版「調整前／調整後」雙線比較，向下相容既有提案。
+ * 否則維持舊版「調整前／調整後」雙線比較，向下相容既有提案 —— 但現在每個資產項目
+ * 若設定了自己的投入方式／幣別，計算時會逐項套用並統一換算成主要顯示幣別。
  */
 export function BeforeAfterLineComparison({ slide, theme, currencySettings }: Props) {
   const d = slide.data
   const line = d.lineComparison ?? defaultLineComparisonData()
+  const settings = currencySettings ?? defaultCurrencySettings()
 
   if ((line.growthAssets?.length ?? 0) > 0) {
     return <BeforeAfterGrowthAssets slide={slide} theme={theme} currencySettings={currencySettings} />
   }
 
-  const points = resolveLineComparisonPoints(line, d.beforeItems, d.afterItems)
-  const fmt = (v: number) => `${currencyLabel(line.currency, line.customCurrencyLabel)}${Math.round(v).toLocaleString('zh-Hant-TW')}`
+  const points = resolveLineComparisonPoints(line, d.beforeItems, d.afterItems, settings)
+  const fmt = (v: number) => formatMoney(v, settings.primaryDisplayCurrency)
   const gap = finalGap(points)
 
   return (
@@ -71,6 +74,7 @@ export function BeforeAfterLineComparison({ slide, theme, currencySettings }: Pr
           </div>
         </div>
       )}
+      <div className="text-[9px] text-zeta-text/40 mt-1">以上為假設報酬率試算，不代表保證收益。換算金額依設定匯率估算，實際金額可能因匯率變動而不同。</div>
     </div>
   )
 }

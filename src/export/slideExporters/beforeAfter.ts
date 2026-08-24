@@ -1,43 +1,44 @@
 import type pptxgen from 'pptxgenjs'
 import type { AssetItem, BeforeAfterData, CurrencySettings, ProposalSlide } from '../../types'
 import type { ZetaTheme } from '../../styles/theme'
-import { PPT_FONT, SLIDE_H, SLIDE_W, formatAmount, hex, addChartImage, type PptChartMode } from '../pptxHelpers'
+import { PPT_FONT, SLIDE_H, SLIDE_W, hex, addChartImage, type PptChartMode } from '../pptxHelpers'
 import { renderPieChartPng, renderLineChartPng } from '../chartRenderer'
 import { resolveLineComparisonPoints, finalGap } from '../../services/lineComparisonCalc'
 import { computeAllGrowthAssetSeries, maxTotalYears } from '../../services/growthAssetCalc'
-import { formatMoney } from '../../services/currencyService'
+import { formatMoney, convertedItemAmount } from '../../services/currencyService'
 import { defaultLineComparisonData } from '../../data/slideDefaults'
 import { defaultCurrencySettings } from '../../types'
-import { currencyLabel } from '../pptxHelpers'
 
-function sumVisible(items: AssetItem[]): number {
-  return items.filter((i) => i.visible).reduce((s, i) => s + Math.max(0, i.amount), 0)
+/** 換算成統一顯示幣別後加總（不同幣別的資產不能直接相加） */
+function convertedTotal(items: AssetItem[], settings: CurrencySettings): number {
+  return items.filter((i) => i.visible).reduce((s, i) => s + Math.max(0, convertedItemAmount(i, settings)), 0)
 }
 
 export function exportBeforeAfterSlide(pptx: pptxgen, slide: ProposalSlide<BeforeAfterData>, theme: ZetaTheme, mode: PptChartMode, currencySettings?: CurrencySettings) {
   const s = pptx.addSlide()
   const d = slide.data
   s.background = { color: hex(theme.bgPrimary) }
+  const settings = currencySettings ?? defaultCurrencySettings()
 
   switch (slide.layoutId) {
     case 'sideCards':
-      exportSideCards(s, d, theme)
+      exportSideCards(s, d, theme, settings)
       break
     case 'lineComparison':
       exportLineComparison(pptx, s, d, theme, mode, currencySettings)
       break
     case 'dualPie':
     default:
-      exportDualPie(pptx, s, d, theme, mode)
+      exportDualPie(pptx, s, d, theme, mode, settings)
   }
 }
 
-function exportDualPie(pptx: pptxgen, s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme, mode: PptChartMode) {
+function exportDualPie(pptx: pptxgen, s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme, mode: PptChartMode, settings: CurrencySettings) {
   s.addText(d.heading || 'Before & After', { x: 0.6, y: 0.4, w: 10, h: 0.6, fontSize: 26, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })
   s.addShape('line', { x: 0.62, y: 1.0, w: 1.6, h: 0, line: { color: hex(theme.gold), width: 2 } })
 
-  const beforeTotal = sumVisible(d.beforeItems)
-  const afterTotal = sumVisible(d.afterItems)
+  const beforeTotal = convertedTotal(d.beforeItems, settings)
+  const afterTotal = convertedTotal(d.afterItems, settings)
   const diff = afterTotal - beforeTotal
 
   const renderSide = (x: number, label: string, items: AssetItem[], total: number) => {
@@ -45,32 +46,33 @@ function exportDualPie(pptx: pptxgen, s: pptxgen.Slide, d: BeforeAfterData, them
     s.addText(label, { x: x + 0.3, y: 1.45, w: 4, h: 0.4, fontSize: 15, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })
 
     const visible = items.filter((i) => i.visible)
+    const convertedValues = visible.map((i) => Math.max(0, convertedItemAmount(i, settings)))
     if (visible.length === 0 || total <= 0) {
       s.addText('尚無資產項目', { x: x + 0.3, y: 2.4, w: 5.2, h: 0.5, fontSize: 12, color: hex(theme.text), fontFace: PPT_FONT })
     } else if (mode === 'editable') {
-      s.addChart(pptx.ChartType.doughnut, [{ name: label, labels: visible.map((i) => i.name), values: visible.map((i) => Math.max(0, i.amount)) }], {
+      s.addChart(pptx.ChartType.doughnut, [{ name: label, labels: visible.map((i) => i.name), values: convertedValues }], {
         x: x + 0.3, y: 1.85, w: 3.1, h: 2.5, holeSize: 55, showLegend: false, chartColors: visible.map((i) => hex(i.color))
       })
       let ty = 1.9
       visible.forEach((item, idx) => {
-        const pct = total > 0 ? ((Math.max(0, item.amount) / total) * 100).toFixed(1) : '0.0'
+        const pct = total > 0 ? ((convertedValues[idx] / total) * 100).toFixed(1) : '0.0'
         s.addShape('rect', { x: x + 3.5, y: ty + idx * 0.42, w: 0.14, h: 0.14, fill: { color: hex(item.color) } })
-        s.addText(`${item.name}  ${formatAmount(item.amount, d.currency, d.customCurrencyLabel)}（${pct}%）`, { x: x + 3.72, y: ty + idx * 0.42 - 0.06, w: 2.0, h: 0.3, fontSize: 8.5, color: hex(theme.text), fontFace: PPT_FONT })
+        s.addText(`${item.name}  ${formatMoney(item.amount, item.currency ?? 'TWD', item.customCurrencyLabel)}（${pct}%）`, { x: x + 3.72, y: ty + idx * 0.42 - 0.06, w: 2.0, h: 0.3, fontSize: 8.5, color: hex(theme.text), fontFace: PPT_FONT })
       })
     } else {
       // PNG 尺寸必須與放入的 box（5.2in x 2.5in）比例一致，否則會被拉伸變形
-      const png = renderPieChartPng(visible.map((i) => ({ name: i.name, value: i.amount, color: i.color })), { width: Math.round(5.2 * 96), height: Math.round(2.5 * 96), donut: true, showLegend: true, legendColor: '#333333' })
+      const png = renderPieChartPng(visible.map((i, idx) => ({ name: i.name, value: convertedValues[idx], color: i.color })), { width: Math.round(5.2 * 96), height: Math.round(2.5 * 96), donut: true, showLegend: true, legendColor: '#333333' })
       addChartImage(s, png, { x: x + 0.3, y: 1.85, w: 5.2, h: 2.5 })
     }
 
-    s.addText(`總計：${formatAmount(total, d.currency, d.customCurrencyLabel)}`, { x: x + 0.3, y: 5.15, w: 5.2, h: 0.35, fontSize: 12, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })
+    s.addText(`總計：${formatMoney(total, settings.primaryDisplayCurrency)}`, { x: x + 0.3, y: 5.15, w: 5.2, h: 0.35, fontSize: 12, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })
   }
 
   renderSide(0.6, d.beforeLabel || '調整前', d.beforeItems, beforeTotal)
   renderSide(6.9, d.afterLabel || '調整後', d.afterItems, afterTotal)
   s.addShape('rightArrow', { x: 6.35, y: 3.0, w: 0.5, h: 0.4, fill: { color: hex(theme.gold) } })
 
-  const diffLabel = diff === 0 ? '配置金額一致' : diff > 0 ? `增加 ${formatAmount(diff, d.currency, d.customCurrencyLabel)}` : `減少 ${formatAmount(Math.abs(diff), d.currency, d.customCurrencyLabel)}`
+  const diffLabel = diff === 0 ? '配置金額一致' : diff > 0 ? `增加 ${formatMoney(diff, settings.primaryDisplayCurrency)}` : `減少 ${formatMoney(Math.abs(diff), settings.primaryDisplayCurrency)}`
   s.addText(
     [
       { text: `差額說明：${diffLabel}\n`, options: { bold: true, color: hex(theme.navy), fontSize: 11, breakLine: true } },
@@ -80,22 +82,24 @@ function exportDualPie(pptx: pptxgen, s: pptxgen.Slide, d: BeforeAfterData, them
   )
 }
 
-function exportSideCards(s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme) {
+function exportSideCards(s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme, settings: CurrencySettings) {
   s.addText(d.heading || 'Before & After', { x: 0.6, y: 0.4, w: 10, h: 0.6, fontSize: 26, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })
   s.addShape('line', { x: 0.62, y: 1.0, w: 1.6, h: 0, line: { color: hex(theme.gold), width: 2 } })
 
-  const beforeTotal = sumVisible(d.beforeItems)
-  const afterTotal = sumVisible(d.afterItems)
+  const beforeTotal = convertedTotal(d.beforeItems, settings)
+  const afterTotal = convertedTotal(d.afterItems, settings)
 
   s.addShape('roundRect', { x: 0.6, y: 1.25, w: 5.9, h: 0.9, fill: { color: hex(theme.navy) }, rectRadius: 0.08 })
   s.addText(`${d.beforeLabel}總額`, { x: 0.85, y: 1.35, w: 4, h: 0.3, fontSize: 10, color: hex(theme.cream), fontFace: PPT_FONT })
-  s.addText(formatAmount(beforeTotal, d.currency, d.customCurrencyLabel), { x: 0.85, y: 1.6, w: 5.4, h: 0.5, fontSize: 18, bold: true, color: hex(theme.gold), fontFace: PPT_FONT })
+  s.addText(formatMoney(beforeTotal, settings.primaryDisplayCurrency), { x: 0.85, y: 1.6, w: 5.4, h: 0.5, fontSize: 18, bold: true, color: hex(theme.gold), fontFace: PPT_FONT })
 
   s.addShape('roundRect', { x: 6.8, y: 1.25, w: 5.9, h: 0.9, fill: { color: hex(theme.gold) }, rectRadius: 0.08 })
   s.addText(`${d.afterLabel}總額`, { x: 7.05, y: 1.35, w: 4, h: 0.3, fontSize: 10, color: hex(theme.navy), fontFace: PPT_FONT })
-  s.addText(formatAmount(afterTotal, d.currency, d.customCurrencyLabel), { x: 7.05, y: 1.6, w: 5.4, h: 0.5, fontSize: 18, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })
+  s.addText(formatMoney(afterTotal, settings.primaryDisplayCurrency), { x: 7.05, y: 1.6, w: 5.4, h: 0.5, fontSize: 18, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })
 
-  const names = Array.from(new Set([...d.beforeItems.filter((i) => i.visible).map((i) => i.name), ...d.afterItems.filter((i) => i.visible).map((i) => i.name)]))
+  const beforeVisible = d.beforeItems.filter((i) => i.visible)
+  const afterVisible = d.afterItems.filter((i) => i.visible)
+  const names = Array.from(new Set([...beforeVisible.map((i) => i.name), ...afterVisible.map((i) => i.name)]))
   const rows: pptxgen.TableRow[] = [[
     { text: '項目', options: { bold: true, color: hex(theme.white), fill: { color: hex(theme.navy) } } },
     { text: d.beforeLabel, options: { bold: true, color: hex(theme.white), fill: { color: hex(theme.navy) }, align: 'right' } },
@@ -103,16 +107,16 @@ function exportSideCards(s: pptxgen.Slide, d: BeforeAfterData, theme: ZetaTheme)
     { text: '差額', options: { bold: true, color: hex(theme.white), fill: { color: hex(theme.navy) }, align: 'right' } }
   ]]
   names.forEach((name) => {
-    const before = d.beforeItems.find((i) => i.name === name && i.visible)
-    const after = d.afterItems.find((i) => i.name === name && i.visible)
-    const beforeAmt = before?.amount ?? 0
-    const afterAmt = after?.amount ?? 0
+    const before = beforeVisible.find((i) => i.name === name)
+    const after = afterVisible.find((i) => i.name === name)
+    const beforeAmt = before ? convertedItemAmount(before, settings) : 0
+    const afterAmt = after ? convertedItemAmount(after, settings) : 0
     const delta = afterAmt - beforeAmt
     rows.push([
       { text: name, options: { color: hex(theme.text) } },
-      { text: formatAmount(beforeAmt, d.currency, d.customCurrencyLabel), options: { color: hex(theme.text), align: 'right' } },
-      { text: formatAmount(afterAmt, d.currency, d.customCurrencyLabel), options: { color: hex(theme.navy), bold: true, align: 'right' } },
-      { text: `${delta >= 0 ? '+' : ''}${formatAmount(delta, d.currency, d.customCurrencyLabel)}`, options: { color: hex(delta >= 0 ? theme.positive : theme.danger), bold: true, align: 'right' } }
+      { text: formatMoney(beforeAmt, settings.primaryDisplayCurrency), options: { color: hex(theme.text), align: 'right' } },
+      { text: formatMoney(afterAmt, settings.primaryDisplayCurrency), options: { color: hex(theme.navy), bold: true, align: 'right' } },
+      { text: `${delta >= 0 ? '+' : ''}${formatMoney(delta, settings.primaryDisplayCurrency)}`, options: { color: hex(delta >= 0 ? theme.positive : theme.danger), bold: true, align: 'right' } }
     ])
   })
   s.addTable(rows, { x: 0.6, y: 2.35, w: 12.1, h: 3.9, fontSize: 11, fontFace: PPT_FONT, border: { type: 'solid', color: 'E8DCCB', pt: 0.5 }, autoPage: false })
@@ -128,8 +132,9 @@ function exportLineComparison(pptx: pptxgen, s: pptxgen.Slide, d: BeforeAfterDat
     return
   }
 
-  const points = resolveLineComparisonPoints(line, d.beforeItems, d.afterItems)
-  const fmt = (v: number) => `${currencyLabel(line.currency, line.customCurrencyLabel)}${Math.round(v).toLocaleString('zh-Hant-TW')}`
+  const points = resolveLineComparisonPoints(line, d.beforeItems, d.afterItems, currencySettings ?? defaultCurrencySettings())
+  const displayCurrency = (currencySettings ?? defaultCurrencySettings()).primaryDisplayCurrency
+  const fmt = (v: number) => formatMoney(v, displayCurrency)
 
   s.addText(line.chartTitle || d.heading || '資產成長折線比較', { x: 0.6, y: 0.4, w: 10, h: 0.5, fontSize: 24, bold: true, color: hex(theme.navy), fontFace: PPT_FONT })
   if (line.chartDescription) {
@@ -169,6 +174,10 @@ function exportLineComparison(pptx: pptxgen, s: pptxgen.Slide, d: BeforeAfterDat
     s.addText('目標資產', { x: 10.2, y: 2.95, w: 2.3, h: 0.3, fontSize: 10, color: hex(theme.text), fontFace: PPT_FONT })
     s.addText(fmt(line.targetAmount), { x: 10.2, y: 3.25, w: 2.3, h: 0.5, fontSize: 16, bold: true, color: hex(line.targetColor), fontFace: PPT_FONT })
   }
+
+  s.addText('以上為假設報酬率試算，不代表保證收益。換算金額依設定匯率估算，實際金額可能因匯率變動而不同。', {
+    x: 0.6, y: SLIDE_H - 0.55, w: 9.2, h: 0.4, fontSize: 8, color: hex(theme.text), fontFace: PPT_FONT, italic: true
+  })
 }
 
 /** 多項資產獨立試算模式：每項資產各自的幣別、投入方式、投入年數、報酬率、試算總年數都不同 */

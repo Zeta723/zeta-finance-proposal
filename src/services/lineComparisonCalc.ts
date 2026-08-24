@@ -1,20 +1,21 @@
-import type { AssetItem, LineComparisonData, LineComparisonPoint } from '../types'
+import type { AssetItem, CurrencySettings, LineComparisonData, LineComparisonPoint } from '../types'
+import { defaultCurrencySettings } from '../types'
 import { newId } from './idGenerator'
+import { toDisplayCurrencyValue } from './currencyService'
 
 /**
  * 自動試算折線比較資料點。
  *
- * 逐項報酬率模型（每項資產工具可以有自己的成長利率）：
- * - 本金部分：Before/After 各自的資產項目清單（來自同一頁「資產配置」區塊的
- *   beforeItems／afterItems）分別複利成長，每個項目使用自己的
- *   `annualReturnRate`；未個別設定時，退回使用該側的預設報酬率
- *   （beforeAnnualReturnRate／afterAnnualReturnRate）。
- * - 投入金額部分：視為與個別工具分開的「定期投入」資金流，用該側的預設報酬率
- *   複利成長（因為新增的投入資金通常還沒被歸類到特定工具）。
- * - 兩者相加得到每個時間點的 Before／After 總額。
- * - 非複利（簡單利息）模式：本金以「原始金額 × 年利率 × 期數」線性增加，
- *   投入金額本身不再複利滾入下一期的利息計算。
- * - 目標線：使用者輸入的單一「目標資產金額」，在圖表上以水平參考線呈現於每一個時間點。
+ * 逐項試算模型（每項資產工具完全獨立設定）：
+ * - 每個資產項目（來自「調整前/調整後資產項目」清單）都有自己的：
+ *   目前資產金額＋幣別、投入方式（單筆／每月／每年）、投入金額＋幣別、
+ *   投入年限、年化報酬率 —— 彼此互不影響，也不共用同一組假設。
+ * - 金額計算前，先把「目前資產金額」與「投入金額」都換算成統一的主要顯示幣別
+ *   （CurrencySettings.primaryDisplayCurrency），避免把美元數字和台幣數字直接相加。
+ * - 單筆投入：只在第 0 期計入本金，之後純複利／單利成長，不再新增投入。
+ * - 每年／每月投入：投入年限內每期持續投入；超過投入年限後不再新增投入，
+ *   但既有金額依報酬率持續成長到試算期數結束。
+ * - 沒有設定 annualReturnRate 的項目，退回使用該側（調整前/調整後）的預設報酬率。
  *
  * 若沒有提供任何資產項目（例如舊資料或尚未在頁面中新增項目），退回使用
  * `startAmount` 作為單一本金、套用該側的預設報酬率計算，維持向下相容。
@@ -22,31 +23,37 @@ import { newId } from './idGenerator'
 export function computeAutoLineComparisonPoints(
   data: LineComparisonData,
   beforeItems: AssetItem[] = [],
-  afterItems: AssetItem[] = []
+  afterItems: AssetItem[] = [],
+  currencySettings: CurrencySettings = defaultCurrencySettings()
 ): LineComparisonPoint[] {
   const periods = Math.max(0, Math.floor(data.periods))
   const periodsPerYear = data.timeUnit === 'year' ? 1 : 12
   const beforeVisible = beforeItems.filter((i) => i.visible)
   const afterVisible = afterItems.filter((i) => i.visible)
 
-  const principalAt = (items: AssetItem[], defaultRate: number, t: number): number => {
-    if (items.length === 0) return 0
-    return items.reduce((sum, item) => {
-      const rate = (item.annualReturnRate ?? defaultRate) / 100 / periodsPerYear
-      const amount = Math.max(0, item.amount)
-      if (data.useCompound) return sum + amount * Math.pow(1 + rate, t)
-      return sum + amount + amount * rate * t
-    }, 0)
+  const itemValueAt = (item: AssetItem, defaultRate: number, t: number): number => {
+    const rate = (item.annualReturnRate ?? defaultRate) / 100 / periodsPerYear
+    const mode = item.contributionMode ?? 'lumpSum'
+    const baseAmount = toDisplayCurrencyValue(Math.max(0, item.amount), item.currency ?? 'TWD', currencySettings)
+
+    if (mode === 'lumpSum') {
+      return data.useCompound ? baseAmount * Math.pow(1 + rate, t) : baseAmount + baseAmount * rate * t
+    }
+
+    const contributionPeriods = Math.max(0, item.contributionYears ?? 0) * (mode === 'monthly' ? 12 : 1)
+    const periodicAmount = toDisplayCurrencyValue(Math.max(0, item.periodicAmount ?? 0), item.periodicCurrency ?? item.currency ?? 'TWD', currencySettings)
+
+    if (data.useCompound) {
+      let v = baseAmount
+      for (let i = 1; i <= t; i++) v = v * (1 + rate) + (i <= contributionPeriods ? periodicAmount : 0)
+      return v
+    }
+    return baseAmount + baseAmount * rate * t + periodicAmount * Math.min(t, contributionPeriods)
   }
 
-  const contributionAt = (defaultRate: number, t: number): number => {
-    if (data.contributionAmount === 0) return 0
-    const rate = defaultRate / 100 / periodsPerYear
-    if (!data.useCompound) return data.contributionAmount * t
-    // 每期定期投入複利：期末投入，逐期滾入
-    let total = 0
-    for (let i = 0; i < t; i++) total = total * (1 + rate) + data.contributionAmount
-    return total
+  const principalAt = (items: AssetItem[], defaultRate: number, t: number): number => {
+    if (items.length === 0) return 0
+    return items.reduce((sum, item) => sum + itemValueAt(item, defaultRate, t), 0)
   }
 
   const points: LineComparisonPoint[] = []
@@ -54,10 +61,10 @@ export function computeAutoLineComparisonPoints(
 
   for (let t = 0; t <= periods; t++) {
     const before = hasItems
-      ? principalAt(beforeVisible, data.beforeAnnualReturnRate, t) + contributionAt(data.beforeAnnualReturnRate, t)
+      ? principalAt(beforeVisible, data.beforeAnnualReturnRate, t)
       : computeFallback(data.startAmount, data.beforeAnnualReturnRate, data, periodsPerYear, t)
     const after = hasItems
-      ? principalAt(afterVisible, data.afterAnnualReturnRate, t) + contributionAt(data.afterAnnualReturnRate, t)
+      ? principalAt(afterVisible, data.afterAnnualReturnRate, t)
       : computeFallback(data.startAmount, data.afterAnnualReturnRate, data, periodsPerYear, t)
 
     points.push({
@@ -88,9 +95,14 @@ function timeLabel(data: LineComparisonData, t: number): string {
   return `${data.customUnitLabel || '期'} ${t}`
 }
 
-/** 依模式回傳實際要繪製的資料點：自動模式即時計算（可逐項報酬率），手動模式直接使用使用者輸入的 points */
-export function resolveLineComparisonPoints(data: LineComparisonData, beforeItems: AssetItem[] = [], afterItems: AssetItem[] = []): LineComparisonPoint[] {
-  if (data.mode === 'auto') return computeAutoLineComparisonPoints(data, beforeItems, afterItems)
+/** 依模式回傳實際要繪製的資料點：自動模式即時計算（逐項試算＋幣別換算），手動模式直接使用使用者輸入的 points */
+export function resolveLineComparisonPoints(
+  data: LineComparisonData,
+  beforeItems: AssetItem[] = [],
+  afterItems: AssetItem[] = [],
+  currencySettings?: CurrencySettings
+): LineComparisonPoint[] {
+  if (data.mode === 'auto') return computeAutoLineComparisonPoints(data, beforeItems, afterItems, currencySettings)
   return data.points
 }
 

@@ -127,9 +127,10 @@ export function ProposalListPage({ onOpenProposal }: Props) {
     refresh()
   }
 
-  const handleCreateCategory = (name: string) => {
-    createCategory(name)
+  const handleCreateCategory = (name: string): string => {
+    const category = createCategory(name)
     refreshCategories()
+    return category.id
   }
   const handleRenameCategory = (id: string, name: string) => {
     renameCategory(id, name)
@@ -294,6 +295,7 @@ export function ProposalListPage({ onOpenProposal }: Props) {
                 onRename={() => { setRenameTarget(s); setRenameValue(s.name) }}
                 onDelete={() => setDeleteId(s.id)}
                 onSetCategory={(categoryId) => handleSetCategory(s.id, categoryId)}
+                onCreateCategory={handleCreateCategory}
                 onExportPptx={() => handleExportPptx(s.id)}
                 onExportKeynotePptx={() => handleExportKeynotePptx(s.id)}
                 onExportPdf={() => handleExportPdf(s.id)}

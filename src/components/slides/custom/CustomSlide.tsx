@@ -2,6 +2,7 @@ import React from 'react'
 import type { CustomSlideData, ImageBlock, ProposalSlide } from '../../../types'
 import type { ZetaTheme } from '../../../styles/theme'
 import { RichTextView } from '../../richtext/RichTextView'
+import { imageTransformStyle } from '../../../services/imageTransform'
 
 interface Props {
   slide: ProposalSlide<CustomSlideData>
@@ -70,7 +71,9 @@ export function CustomSlide({ slide, theme }: Props) {
             {/* 舊版沒有 imageBlock 時，維持原本的靜態顯示（相容舊提案） */}
             {!hasImageBlock && (
               d.image?.dataUrl ? (
-                <img src={d.image.dataUrl} className="w-1/2 h-full object-cover rounded-card" alt="" />
+                <div className="w-1/2 h-full overflow-hidden rounded-card">
+                  <img src={d.image.dataUrl} className="w-full h-full object-cover" style={imageTransformStyle(d.image)} alt="" />
+                </div>
               ) : (
                 <div className="w-1/2 h-full bg-zeta-cream/40 rounded-card flex items-center justify-center text-xs text-zeta-text/40">尚未上傳圖片</div>
               )

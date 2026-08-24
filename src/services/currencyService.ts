@@ -45,3 +45,8 @@ export function toDisplayCurrencyValue(amount: number, originalCurrency: Currenc
   if (originalCurrency === 'CUSTOM') return amount
   return convertAmount(amount, originalCurrency, settings.primaryDisplayCurrency, settings.usdToTwdRate)
 }
+
+/** 依 CurrencySettings 把單一資產項目換算成統一顯示幣別的數字（用於加總、圓餅圖比例） */
+export function convertedItemAmount(item: { amount: number; currency?: CurrencyCode }, settings: CurrencySettings): number {
+  return toDisplayCurrencyValue(item.amount, item.currency ?? 'TWD', settings)
+}

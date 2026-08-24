@@ -1,32 +1,38 @@
 import React from 'react'
-import type { BeforeAfterData, ProposalSlide } from '../../../types'
+import type { BeforeAfterData, CurrencySettings, ProposalSlide } from '../../../types'
 import type { ZetaTheme } from '../../../styles/theme'
-import { currencyLabel } from '../../../export/pptxHelpers'
-import { sumVisible } from './BeforeAfterSlide'
+import { convertedItemAmount, formatMoney } from '../../../services/currencyService'
+import { defaultCurrencySettings } from '../../../types'
 
 interface Props {
   slide: ProposalSlide<BeforeAfterData>
   theme: ZetaTheme
+  currencySettings?: CurrencySettings
 }
 
 /**
  * 模板B｜左右卡片對照版：完全不使用圖表，改用單一合併明細列表逐項比對金額，
  * 上方為左右兩張大型總額卡片，資訊密度高、適合資產項目多的情境。
  * 與模板A（雙圓餅圖）在圖表有無、版面結構、閱讀順序上都明顯不同。
+ * 所有加總與比對都先換算成統一顯示幣別，避免不同幣別的資產直接相減比較。
  */
-export function BeforeAfterSideCards({ slide, theme }: Props) {
+export function BeforeAfterSideCards({ slide, theme, currencySettings }: Props) {
   const d = slide.data
-  const beforeTotal = sumVisible(d.beforeItems)
-  const afterTotal = sumVisible(d.afterItems)
-  const fmt = (v: number) => `${currencyLabel(d.currency, d.customCurrencyLabel)}${Math.round(v).toLocaleString('zh-Hant-TW')}`
+  const settings = currencySettings ?? defaultCurrencySettings()
+  const fmt = (v: number) => formatMoney(v, settings.primaryDisplayCurrency)
 
-  // 合併雙方項目名稱，逐列比對（找不到對應項目時金額視為0）
-  const names = Array.from(new Set([...d.beforeItems.filter((i) => i.visible).map((i) => i.name), ...d.afterItems.filter((i) => i.visible).map((i) => i.name)]))
+  const beforeVisible = d.beforeItems.filter((i) => i.visible)
+  const afterVisible = d.afterItems.filter((i) => i.visible)
+  const beforeTotal = beforeVisible.reduce((s, i) => s + Math.max(0, convertedItemAmount(i, settings)), 0)
+  const afterTotal = afterVisible.reduce((s, i) => s + Math.max(0, convertedItemAmount(i, settings)), 0)
+
+  // 合併雙方項目名稱，逐列比對（找不到對應項目時金額視為0）；金額一律用換算後的顯示幣別數值
+  const names = Array.from(new Set([...beforeVisible.map((i) => i.name), ...afterVisible.map((i) => i.name)]))
   const rows = names.map((name) => {
-    const before = d.beforeItems.find((i) => i.name === name && i.visible)
-    const after = d.afterItems.find((i) => i.name === name && i.visible)
-    const beforeAmt = before?.amount ?? 0
-    const afterAmt = after?.amount ?? 0
+    const before = beforeVisible.find((i) => i.name === name)
+    const after = afterVisible.find((i) => i.name === name)
+    const beforeAmt = before ? convertedItemAmount(before, settings) : 0
+    const afterAmt = after ? convertedItemAmount(after, settings) : 0
     return { name, beforeAmt, afterAmt, delta: afterAmt - beforeAmt, color: (after ?? before)?.color ?? theme.gold }
   })
 

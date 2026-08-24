@@ -135,7 +135,7 @@ function CoverForm({ data, onChange }: { data: CoverData; onChange: (d: CoverDat
       </Field>
       <ImageUploadField label="Logo" value={data.logo} onChange={(v) => set({ logo: v })} />
       <ImageUploadField label="封面照片" value={data.coverPhoto} onChange={(v) => set({ coverPhoto: v })} />
-      <ImageUploadField label="背景圖片" value={data.backgroundImage} onChange={(v) => set({ backgroundImage: v })} />
+      <ImageUploadField label="背景圖片" value={data.backgroundImage} onChange={(v) => set({ backgroundImage: v })} showFitToggle />
     </div>
   )
 }
@@ -201,7 +201,7 @@ function BeforeAfterForm({
         <AssetItemListEditor
           items={data.beforeItems}
           onChange={(items) => set({ beforeItems: items })}
-          showReturnRate={layoutId === 'lineComparison'}
+          showInvestmentFields
           defaultReturnRate={data.lineComparison?.beforeAnnualReturnRate}
         />
       </Field>
@@ -209,7 +209,7 @@ function BeforeAfterForm({
         <AssetItemListEditor
           items={data.afterItems}
           onChange={(items) => set({ afterItems: items })}
-          showReturnRate={layoutId === 'lineComparison'}
+          showInvestmentFields
           defaultReturnRate={data.lineComparison?.afterAnnualReturnRate}
         />
       </Field>
