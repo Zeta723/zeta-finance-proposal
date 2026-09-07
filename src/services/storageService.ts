@@ -1,5 +1,6 @@
 import type { Proposal, ProposalSummary } from '../types'
 import { SCHEMA_VERSION } from '../types'
+import { newId } from './idGenerator'
 
 /**
  * StorageService：把所有 localStorage 存取集中在這裡。
@@ -65,6 +66,49 @@ function migrateSlideIfNeeded(slide: any): any {
   return slide
 }
 
+/**
+ * 資產項目 ID 防呆補丁：拖曳排序（AssetItemListEditor）必須依賴每個資產項目
+ * 穩定且唯一的 id 當作 React key／排序依據。這裡在「每一次讀取提案」時
+ * （不只是跨版本升級時）都無條件檢查 assetAllocation 的 items、
+ * beforeAfter 的 beforeItems／afterItems 陣列，若有項目缺少 id 就補上一個
+ * 新的唯一 id —— 只補 id，名稱／金額／顏色／備註／顯示狀態等其他欄位完全
+ * 不動，也不會影響其餘已經有 id 的項目。沒有任何項目缺 id 時直接回傳原始
+ * 物件（不建立新物件），避免每次讀取都觸發不必要的重新渲染。
+ */
+function backfillMissingAssetItemIds(proposal: any): any {
+  if (!proposal || !Array.isArray(proposal.slides)) return proposal
+  let changed = false
+
+  const fixArray = (arr: unknown): unknown => {
+    if (!Array.isArray(arr)) return arr
+    let arrChanged = false
+    const next = arr.map((item) => {
+      if (item && typeof item === 'object' && !(item as any).id) {
+        arrChanged = true
+        return { ...(item as object), id: newId() }
+      }
+      return item
+    })
+    if (arrChanged) changed = true
+    return arrChanged ? next : arr
+  }
+
+  const slides = proposal.slides.map((slide: any) => {
+    if (!slide || typeof slide !== 'object' || !slide.data || typeof slide.data !== 'object') return slide
+    const data = slide.data
+    const hasArrays = Array.isArray(data.items) || Array.isArray(data.beforeItems) || Array.isArray(data.afterItems)
+    if (!hasArrays) return slide
+
+    const nextData = { ...data }
+    if (Array.isArray(data.items)) nextData.items = fixArray(data.items)
+    if (Array.isArray(data.beforeItems)) nextData.beforeItems = fixArray(data.beforeItems)
+    if (Array.isArray(data.afterItems)) nextData.afterItems = fixArray(data.afterItems)
+    return { ...slide, data: nextData }
+  })
+
+  return changed ? { ...proposal, slides } : proposal
+}
+
 class LocalStorageProposalService implements IProposalStorage {
   private readIndex(): string[] {
     try {
@@ -109,7 +153,8 @@ class LocalStorageProposalService implements IProposalStorage {
       if (!raw) return null
       const parsed = JSON.parse(raw)
       if (!parsed || parsed.schemaVersion === undefined) return null
-      return migrateProposalIfNeeded(id, parsed) as Proposal
+      const migrated = migrateProposalIfNeeded(id, parsed)
+      return backfillMissingAssetItemIds(migrated) as Proposal
     } catch {
       // 單一提案資料損毀：不拋出例外，回傳 null 讓 UI 顯示「資料損毀」提示
       return null
@@ -168,13 +213,13 @@ class LocalStorageProposalService implements IProposalStorage {
       throw new Error('INVALID_PROPOSAL_FORMAT')
     }
     const now = new Date().toISOString()
-    const imported: Proposal = {
+    const imported: Proposal = backfillMissingAssetItemIds({
       ...parsed,
       id: crypto.randomUUID(),
       schemaVersion: SCHEMA_VERSION,
       createdAt: parsed.createdAt ?? now,
       updatedAt: now
-    }
+    }) as Proposal
     this.saveProposal(imported)
     return imported
   }
@@ -196,7 +241,7 @@ class LocalStorageProposalService implements IProposalStorage {
     let skipped = 0
     for (const p of parsed.proposals ?? []) {
       try {
-        this.saveProposal({ ...p, id: p.id ?? crypto.randomUUID() })
+        this.saveProposal(backfillMissingAssetItemIds({ ...p, id: p.id ?? crypto.randomUUID() }) as Proposal)
         imported++
       } catch {
         skipped++
