@@ -67,13 +67,15 @@ function migrateSlideIfNeeded(slide: any): any {
 }
 
 /**
- * 資產項目 ID 防呆補丁：拖曳排序（AssetItemListEditor）必須依賴每個資產項目
- * 穩定且唯一的 id 當作 React key／排序依據。這裡在「每一次讀取提案」時
- * （不只是跨版本升級時）都無條件檢查 assetAllocation 的 items、
- * beforeAfter 的 beforeItems／afterItems 陣列，若有項目缺少 id 就補上一個
- * 新的唯一 id —— 只補 id，名稱／金額／顏色／備註／顯示狀態等其他欄位完全
- * 不動，也不會影響其餘已經有 id 的項目。沒有任何項目缺 id 時直接回傳原始
- * 物件（不建立新物件），避免每次讀取都觸發不必要的重新渲染。
+ * 資產項目／收入分配大項目／小項目 ID 防呆補丁：拖曳排序（AssetItemListEditor、
+ * AllocationCategoryListEditor）都依賴每個項目穩定且唯一的 id 當作 React key／
+ * 排序依據。這裡在「每一次讀取提案」時（不只是跨版本升級時）都無條件檢查
+ * assetAllocation 的 items、beforeAfter 的 beforeItems／afterItems，以及
+ * accountAllocation 的 categories（含每個大項目底下的 subItems）陣列，
+ * 若有項目缺少 id 就補上一個新的唯一 id —— 只補 id，其餘欄位（名稱／金額／
+ * 顏色／備註／顯示狀態／投入設定）完全不動，也不會影響其餘已經有 id 的項目。
+ * 沒有任何項目缺 id 時直接回傳原始物件（不建立新物件），避免每次讀取都觸發
+ * 不必要的重新渲染。
  */
 function backfillMissingAssetItemIds(proposal: any): any {
   if (!proposal || !Array.isArray(proposal.slides)) return proposal
@@ -93,16 +95,42 @@ function backfillMissingAssetItemIds(proposal: any): any {
     return arrChanged ? next : arr
   }
 
+  const fixCategories = (arr: unknown): unknown => {
+    if (!Array.isArray(arr)) return arr
+    let arrChanged = false
+    const next = arr.map((cat) => {
+      if (!cat || typeof cat !== 'object') return cat
+      let catChanged = false
+      let nextCat: any = cat
+      if (!(cat as any).id) {
+        nextCat = { ...(cat as object), id: newId() }
+        catChanged = true
+      }
+      if (Array.isArray((cat as any).subItems)) {
+        const fixedSubItems = fixArray((cat as any).subItems)
+        if (fixedSubItems !== (cat as any).subItems) {
+          nextCat = { ...nextCat, subItems: fixedSubItems }
+          catChanged = true
+        }
+      }
+      if (catChanged) arrChanged = true
+      return catChanged ? nextCat : cat
+    })
+    if (arrChanged) changed = true
+    return arrChanged ? next : arr
+  }
+
   const slides = proposal.slides.map((slide: any) => {
     if (!slide || typeof slide !== 'object' || !slide.data || typeof slide.data !== 'object') return slide
     const data = slide.data
-    const hasArrays = Array.isArray(data.items) || Array.isArray(data.beforeItems) || Array.isArray(data.afterItems)
+    const hasArrays = Array.isArray(data.items) || Array.isArray(data.beforeItems) || Array.isArray(data.afterItems) || Array.isArray(data.categories)
     if (!hasArrays) return slide
 
     const nextData = { ...data }
     if (Array.isArray(data.items)) nextData.items = fixArray(data.items)
     if (Array.isArray(data.beforeItems)) nextData.beforeItems = fixArray(data.beforeItems)
     if (Array.isArray(data.afterItems)) nextData.afterItems = fixArray(data.afterItems)
+    if (Array.isArray(data.categories)) nextData.categories = fixCategories(data.categories)
     return { ...slide, data: nextData }
   })
 

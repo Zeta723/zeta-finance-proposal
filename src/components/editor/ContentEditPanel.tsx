@@ -252,7 +252,12 @@ function AccountAllocationForm({ data, onChange }: { data: AccountAllocationData
         <label className="flex items-center gap-1.5"><input type="checkbox" checked={data.showPercentage} onChange={(e) => set({ showPercentage: e.target.checked })} />顯示比例</label>
       </div>
       <Field label="大項目與小項目">
-        <AllocationCategoryListEditor categories={data.categories} onChange={(categories) => set({ categories })} />
+        <AllocationCategoryListEditor
+          categories={data.categories}
+          onChange={(categories) => set({ categories })}
+          currency={data.currency}
+          customCurrencyLabel={data.customCurrencyLabel}
+        />
       </Field>
     </div>
   )
